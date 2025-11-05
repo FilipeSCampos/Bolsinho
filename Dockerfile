@@ -1,0 +1,69 @@
+# Multi-stage build para otimizar tamanho da imagem
+
+# Stage 1: Build
+FROM node:22-slim AS builder
+
+# Instalar Python e dependências do sistema
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copiar arquivos de dependências
+COPY package.json pnpm-lock.yaml ./
+
+# Instalar pnpm e dependências Node.js
+RUN npm install -g pnpm@10.4.1
+RUN pnpm install --frozen-lockfile
+
+# Copiar código fonte
+COPY . .
+
+# Build do frontend
+RUN pnpm build
+
+# Stage 2: Production
+FROM node:22-slim
+
+# Instalar Python, Tesseract e dependências de runtime
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copiar pnpm
+RUN npm install -g pnpm@10.4.1
+
+# Copiar dependências do build stage
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
+# Copiar código fonte necessário
+COPY package.json pnpm-lock.yaml ./
+COPY server ./server
+COPY drizzle ./drizzle
+COPY shared ./shared
+
+# Instalar dependências Python
+COPY requirements.txt ./
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Criar diretório para uploads
+RUN mkdir -p /app/uploads
+
+# Expor porta
+EXPOSE 3000
+
+# Variáveis de ambiente
+ENV NODE_ENV=production
+
+# Comando de inicialização
+CMD ["pnpm", "start"]

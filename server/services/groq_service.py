@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""
+Serviço de integração com Groq API para processamento multimodal.
+Suporta análise de texto, imagens e documentos financeiros.
+"""
+
+import os
+import base64
+from typing import List, Dict, Any, Optional
+from groq import Groq
+
+class GroqService:
+    """Serviço para interação com Groq API."""
+    
+    def __init__(self):
+        """Inicializa o cliente Groq com a chave de API."""
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY não configurada")
+        
+        self.client = Groq(api_key=api_key)
+        self.default_model = "llama-3.2-90b-vision-preview"  # Modelo multimodal
+        self.text_model = "llama-3.3-70b-versatile"  # Modelo apenas texto
+    
+    def encode_image(self, image_path: str) -> str:
+        """Codifica imagem em base64 para envio à API."""
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    
+    def chat_completion(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048
+    ) -> str:
+        """
+        Realiza chat completion com Groq.
+        
+        Args:
+            messages: Lista de mensagens no formato OpenAI
+            model: Modelo a ser usado (padrão: llama-3.3-70b-versatile)
+            temperature: Temperatura para geração (0-2)
+            max_tokens: Número máximo de tokens na resposta
+            
+        Returns:
+            Resposta do modelo
+        """
+        if model is None:
+            model = self.text_model
+        
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        return response.choices[0].message.content
+    
+    def analyze_image(
+        self,
+        image_url: str,
+        prompt: str,
+        temperature: float = 0.5
+    ) -> str:
+        """
+        Analisa uma imagem usando visão computacional.
+        
+        Args:
+            image_url: URL da imagem a ser analisada
+            prompt: Prompt descrevendo o que analisar
+            temperature: Temperatura para geração
+            
+        Returns:
+            Análise da imagem
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image_url
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        response = self.client.chat.completions.create(
+            model=self.default_model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=2048
+        )
+        
+        return response.choices[0].message.content
+    
+    def extract_financial_data(self, image_url: str, document_type: str = "recibo") -> Dict[str, Any]:
+        """
+        Extrai dados financeiros de documentos (recibos, notas fiscais, extratos).
+        
+        Args:
+            image_url: URL da imagem do documento
+            document_type: Tipo de documento (recibo, nota_fiscal, extrato, boleto)
+            
+        Returns:
+            Dicionário com dados extraídos
+        """
+        prompts = {
+            "recibo": """Analise este recibo e extraia as seguintes informações em formato JSON:
+            - valor_total: valor total da compra
+            - data: data da transação
+            - estabelecimento: nome do estabelecimento
+            - categoria_sugerida: categoria de gasto sugerida (alimentação, transporte, saúde, etc.)
+            - itens: lista de itens comprados (se visível)
+            Retorne apenas o JSON, sem texto adicional.""",
+            
+            "nota_fiscal": """Analise esta nota fiscal e extraia as seguintes informações em formato JSON:
+            - valor_total: valor total
+            - data_emissao: data de emissão
+            - cnpj: CNPJ do emissor
+            - razao_social: razão social do emissor
+            - itens: lista de produtos/serviços
+            - impostos: valores de impostos
+            Retorne apenas o JSON, sem texto adicional.""",
+            
+            "extrato": """Analise este extrato bancário e extraia as seguintes informações em formato JSON:
+            - periodo: período do extrato
+            - saldo_inicial: saldo inicial
+            - saldo_final: saldo final
+            - transacoes: lista de transações com data, descrição e valor
+            Retorne apenas o JSON, sem texto adicional.""",
+            
+            "boleto": """Analise este boleto e extraia as seguintes informações em formato JSON:
+            - valor: valor do boleto
+            - vencimento: data de vencimento
+            - beneficiario: nome do beneficiário
+            - codigo_barras: código de barras (se visível)
+            - linha_digitavel: linha digitável (se visível)
+            Retorne apenas o JSON, sem texto adicional."""
+        }
+        
+        prompt = prompts.get(document_type, prompts["recibo"])
+        result = self.analyze_image(image_url, prompt, temperature=0.3)
+        
+        # Tenta parsear o JSON da resposta
+        import json
+        try:
+            # Remove markdown code blocks se presentes
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+            
+            return json.loads(result)
+        except json.JSONDecodeError:
+            return {"raw_response": result, "error": "Falha ao parsear JSON"}
+    
+    def categorize_transaction(
+        self,
+        description: str,
+        amount: float,
+        context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Categoriza uma transação financeira automaticamente.
+        
+        Args:
+            description: Descrição da transação
+            amount: Valor da transação
+            context: Contexto adicional (opcional)
+            
+        Returns:
+            Categoria e confiança da classificação
+        """
+        prompt = f"""Categorize a seguinte transação financeira:
+
+Descrição: {description}
+Valor: R$ {amount:.2f}
+{f'Contexto: {context}' if context else ''}
+
+Categorias disponíveis:
+- alimentacao (restaurantes, supermercados, delivery)
+- transporte (combustível, uber, transporte público)
+- moradia (aluguel, condomínio, contas)
+- saude (farmácia, consultas, plano de saúde)
+- educacao (cursos, livros, mensalidade)
+- lazer (cinema, streaming, viagens)
+- vestuario (roupas, calçados)
+- tecnologia (eletrônicos, software)
+- investimentos (aplicações, ações)
+- outros
+
+Retorne um JSON com:
+- categoria: a categoria escolhida
+- confianca: nível de confiança (0-1)
+- subcategoria: subcategoria específica (opcional)
+- sugestao_orcamento: sugestão se deve ser incluído no orçamento mensal
+
+Retorne apenas o JSON, sem texto adicional."""
+
+        response = self.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        
+        import json
+        try:
+            if "```json" in response:
+                response = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                response = response.split("```")[1].split("```")[0].strip()
+            
+            return json.loads(response)
+        except json.JSONDecodeError:
+            return {
+                "categoria": "outros",
+                "confianca": 0.5,
+                "raw_response": response
+            }
+    
+    def analyze_spending_pattern(
+        self,
+        transactions: List[Dict[str, Any]],
+        budget: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Any]:
+        """
+        Analisa padrões de gastos e fornece insights.
+        
+        Args:
+            transactions: Lista de transações
+            budget: Orçamento definido por categoria (opcional)
+            
+        Returns:
+            Análise e recomendações
+        """
+        import json
+        
+        transactions_summary = json.dumps(transactions, ensure_ascii=False, indent=2)
+        budget_info = json.dumps(budget, ensure_ascii=False, indent=2) if budget else "Não definido"
+        
+        prompt = f"""Analise os seguintes gastos e forneça insights:
+
+Transações:
+{transactions_summary}
+
+Orçamento definido:
+{budget_info}
+
+Forneça uma análise em JSON com:
+- total_gasto: total gasto no período
+- categoria_maior_gasto: categoria com maior gasto
+- alertas: lista de alertas sobre gastos excessivos
+- recomendacoes: recomendações para economizar
+- tendencias: tendências observadas nos gastos
+- projecao_mensal: projeção de gastos para o mês (se aplicável)
+
+Retorne apenas o JSON, sem texto adicional."""
+
+        response = self.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=3000
+        )
+        
+        try:
+            if "```json" in response:
+                response = response.split("```json")[1].split("```")[0].strip()
+            elif "```" in response:
+                response = response.split("```")[1].split("```")[0].strip()
+            
+            return json.loads(response)
+        except json.JSONDecodeError:
+            return {"raw_response": response, "error": "Falha ao parsear análise"}
+    
+    def financial_assistant(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> str:
+        """
+        Assistente financeiro conversacional.
+        
+        Args:
+            user_message: Mensagem do usuário
+            conversation_history: Histórico da conversa
+            
+        Returns:
+            Resposta do assistente
+        """
+        system_prompt = """Você é um assistente financeiro pessoal especializado em:
+- Educação financeira
+- Planejamento de orçamento
+- Análise de gastos
+- Dicas de investimento
+- Economia e redução de custos
+
+Seja sempre prestativo, claro e forneça conselhos práticos.
+Use linguagem acessível e exemplos quando apropriado.
+Quando falar sobre investimentos, sempre mencione os riscos envolvidos."""
+
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        if conversation_history:
+            messages.extend(conversation_history)
+        
+        messages.append({"role": "user", "content": user_message})
+        
+        return self.chat_completion(messages, temperature=0.7, max_tokens=2048)
+
+
+# Instância global do serviço
+groq_service = GroqService()
