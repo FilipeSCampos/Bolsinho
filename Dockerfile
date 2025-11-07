@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar arquivos de dependências (incluindo patches)
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Instalar pnpm e dependências Node.js
 RUN npm install -g pnpm@10.4.1
