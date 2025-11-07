@@ -6,6 +6,7 @@ FROM node:22-slim AS builder
 # Instalar Python e dependências do sistema
 RUN apt-get update && apt-get install -y \
     python3.11 \
+    python3.11-venv \
     python3-pip \
     tesseract-ocr \
     tesseract-ocr-por \
@@ -34,6 +35,7 @@ FROM node:22-slim
 # Instalar Python, Tesseract e dependências de runtime
 RUN apt-get update && apt-get install -y \
     python3.11 \
+    python3.11-venv \
     python3-pip \
     tesseract-ocr \
     tesseract-ocr-por \
@@ -71,8 +73,8 @@ RUN mkdir -p /app/uploads /app/server/temp
 # Configurar permissões
 RUN chmod -R 755 /app/uploads /app/server/temp
 
-# Expor porta
-EXPOSE 3000
+# Expor porta (Cloud Run usa PORT variável, mas expomos 8080 como padrão)
+EXPOSE 8080
 
 # Variáveis de ambiente
 ENV NODE_ENV=production

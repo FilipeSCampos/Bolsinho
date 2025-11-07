@@ -49,15 +49,26 @@ async function startServer() {
     serveStatic(app);
   }
 
+  // Cloud Run e outros serviços cloud definem PORT explicitamente
+  // Nesses casos, use a porta exata fornecida
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  
+  // Em produção (Cloud Run, Railway, etc.), use a porta exata
+  // Em desenvolvimento, permita encontrar porta disponível
+  let port: number;
+  if (process.env.NODE_ENV === "production" && process.env.PORT) {
+    // Produção: use a porta exata fornecida (Cloud Run, etc.)
+    port = preferredPort;
+  } else {
+    // Desenvolvimento: tente encontrar porta disponível
+    port = await findAvailablePort(preferredPort);
+    if (port !== preferredPort) {
+      console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    }
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${port}/`);
   });
 }
 
