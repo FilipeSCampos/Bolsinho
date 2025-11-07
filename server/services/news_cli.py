@@ -3,7 +3,8 @@
 
 import sys
 import json
-from news_service import news_service
+import os
+from news_service import get_news_service
 
 def main():
     if len(sys.argv) < 2:
@@ -11,6 +12,15 @@ def main():
         sys.exit(1)
     
     try:
+        # Verifica se a API key está configurada
+        if not os.getenv("NEWS_API_KEY"):
+            error_msg = "NEWS_API_KEY não configurada. Configure a variável de ambiente NEWS_API_KEY no arquivo .env com sua chave da NewsAPI (https://newsapi.org/)"
+            print(json.dumps({"error": error_msg}, ensure_ascii=False))
+            sys.exit(1)
+        
+        # Obtém a instância do serviço (cria apenas quando necessário)
+        news_service = get_news_service()
+        
         request = json.loads(sys.argv[1])
         method = request.get("method")
         args = request.get("args", [])
@@ -50,8 +60,18 @@ def main():
         
         print(json.dumps(result, ensure_ascii=False))
         
+    except ValueError as e:
+        # Erro de configuração (API key não configurada)
+        error_msg = str(e)
+        if "NEWS_API_KEY" in error_msg:
+            error_msg += " Configure a variável de ambiente NEWS_API_KEY no arquivo .env com sua chave da NewsAPI (https://newsapi.org/)"
+        print(json.dumps({"error": error_msg}, ensure_ascii=False))
+        sys.exit(1)
     except Exception as e:
-        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        # Outros erros (erros da API, etc.)
+        import traceback
+        error_msg = f"Erro ao buscar notícias: {str(e)}"
+        print(json.dumps({"error": error_msg, "details": traceback.format_exc()}, ensure_ascii=False))
         sys.exit(1)
 
 if __name__ == "__main__":

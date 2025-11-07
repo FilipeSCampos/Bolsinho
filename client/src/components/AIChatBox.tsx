@@ -2,16 +2,41 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { Loader2, Send, User, Sparkles, Image as ImageIcon, Mic, X, FileText } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
 /**
- * Message type matching server-side LLM Message interface
+ * Message content types for multimodal support
+ */
+export type TextContent = {
+  type: "text";
+  text: string;
+};
+
+export type ImageContent = {
+  type: "image_url";
+  image_url: {
+    url: string;
+  };
+};
+
+export type AudioContent = {
+  type: "file_url";
+  file_url: {
+    url: string;
+    mime_type: "audio/mpeg" | "audio/wav" | "audio/mp4" | "audio/webm" | "audio/ogg";
+  };
+};
+
+export type MessageContent = string | TextContent | ImageContent | AudioContent | Array<TextContent | ImageContent | AudioContent>;
+
+/**
+ * Message type matching server-side LLM Message interface with multimodal support
  */
 export type Message = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: MessageContent;
 };
 
 export type AIChatBoxProps = {
@@ -23,9 +48,15 @@ export type AIChatBoxProps = {
 
   /**
    * Callback when user sends a message.
-   * Typically you'll call a tRPC mutation here to invoke the LLM.
+   * Can receive text, images, audio files, or PDFs.
    */
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, images?: string[], audio?: string, pdfs?: string[]) => void;
+  
+  /**
+   * Callback to upload files (images/audio) to storage.
+   * Should return the URL of the uploaded file.
+   */
+  onUploadFile?: (file: File) => Promise<string>;
 
   /**
    * Whether the AI is currently generating a response
@@ -119,15 +150,73 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Start a conversation with AI",
   suggestedPrompts,
+  onUploadFile,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedAudio, setSelectedAudio] = useState<string | null>(null);
+  const [selectedPdfs, setSelectedPdfs] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputAreaRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter out system messages
-  const displayMessages = messages.filter((msg) => msg.role !== "system");
+  // Filter out system messages and normalize content for display
+  type DisplayMessage = {
+    role: "user" | "assistant";
+    content: string;
+    images?: string[];
+    audio?: string | null;
+  };
+  
+  const displayMessages: DisplayMessage[] = messages.filter((msg) => msg.role !== "system").map((msg) => {
+    // Normalize content to always have a text representation
+    if (typeof msg.content === "string") {
+      return { role: msg.role as "user" | "assistant", content: msg.content, images: [], audio: null };
+    }
+    
+    if (Array.isArray(msg.content)) {
+      const textParts: string[] = [];
+      const images: string[] = [];
+      let audio: string | null = null;
+      
+      msg.content.forEach((part) => {
+        if (typeof part === "string") {
+          textParts.push(part);
+        } else if (part.type === "text") {
+          textParts.push(part.text);
+        } else if (part.type === "image_url") {
+          images.push(part.image_url.url);
+        } else if (part.type === "file_url" && part.file_url.mime_type?.startsWith("audio/")) {
+          audio = part.file_url.url;
+        }
+      });
+      
+      return {
+        role: msg.role as "user" | "assistant",
+        content: textParts.join("\n") || (images.length > 0 ? "📷 Imagem enviada" : audio ? "🎤 Áudio enviado" : ""),
+        images,
+        audio,
+      };
+    }
+    
+    // Handle single content object
+    if (typeof msg.content === "object" && msg.content !== null && "type" in msg.content) {
+      if (msg.content.type === "text") {
+        return { role: msg.role as "user" | "assistant", content: msg.content.text, images: [], audio: null };
+      } else if (msg.content.type === "image_url") {
+        return { role: msg.role as "user" | "assistant", content: "📷 Imagem enviada", images: [msg.content.image_url.url], audio: null };
+      } else if (msg.content.type === "file_url" && msg.content.file_url.mime_type?.startsWith("audio/")) {
+        return { role: msg.role as "user" | "assistant", content: "🎤 Áudio enviado", images: [], audio: msg.content.file_url.url };
+      }
+    }
+    
+    return { role: msg.role as "user" | "assistant", content: String(msg.content), images: [], audio: null };
+  });
 
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);
@@ -165,13 +254,153 @@ export function AIChatBox({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileUpload = async (file: File): Promise<string> => {
+    if (!onUploadFile) {
+      throw new Error("onUploadFile callback is required for file uploads");
+    }
+    return onUploadFile(file);
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      // Create preview URLs first
+      const previewUrls = files.map((file) => URL.createObjectURL(file));
+      setSelectedImages((prev) => [...prev, ...previewUrls]);
+      
+      // Upload files
+      const uploadedUrls = await Promise.all(
+        files.map((file) => handleFileUpload(file))
+      );
+      
+      // Replace preview URLs with actual uploaded URLs
+      setSelectedImages((prev) => {
+        const newImages = [...prev];
+        // Remove preview URLs
+        previewUrls.forEach((previewUrl) => {
+          const index = newImages.indexOf(previewUrl);
+          if (index !== -1) {
+            URL.revokeObjectURL(previewUrl);
+            newImages.splice(index, 1);
+          }
+        });
+        // Add uploaded URLs
+        return [...newImages, ...uploadedUrls];
+      });
+    } catch (error) {
+      console.error("Erro ao fazer upload de imagem:", error);
+      // Remove any preview URLs that might have been added
+      setSelectedImages((prev) => {
+        const newImages = prev.filter((url) => {
+          if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+            return false;
+          }
+          return true;
+        });
+        return newImages;
+      });
+    } finally {
+      setUploading(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleAudioSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const previewUrl = URL.createObjectURL(file);
+      setSelectedAudio(previewUrl);
+      
+      const uploadedUrl = await handleFileUpload(file);
+      setSelectedAudio(uploadedUrl);
+    } catch (error) {
+      console.error("Erro ao fazer upload de áudio:", error);
+      setSelectedAudio(null);
+    } finally {
+      setUploading(false);
+      if (audioInputRef.current) {
+        audioInputRef.current.value = "";
+      }
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => {
+      const newImages = [...prev];
+      const url = newImages[index];
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+      newImages.splice(index, 1);
+      return newImages;
+    });
+  };
+
+  const removeAudio = () => {
+    if (selectedAudio && selectedAudio.startsWith("blob:")) {
+      URL.revokeObjectURL(selectedAudio);
+    }
+    setSelectedAudio(null);
+  };
+
+  const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploadPromises = files.map((file) => handleFileUpload(file));
+      const uploadedUrls = await Promise.all(uploadPromises);
+      setSelectedPdfs((prev) => [...prev, ...uploadedUrls]);
+    } catch (error) {
+      console.error("Erro ao fazer upload de PDF:", error);
+    } finally {
+      setUploading(false);
+      if (pdfInputRef.current) {
+        pdfInputRef.current.value = "";
+      }
+    }
+  };
+
+  const removePdf = (index: number) => {
+    setSelectedPdfs((prev) => {
+      const newPdfs = [...prev];
+      newPdfs.splice(index, 1);
+      return newPdfs;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = input.trim();
-    if (!trimmedInput || isLoading) return;
+    
+    // Allow sending even without text if there are images, audio, or PDFs
+    if ((!trimmedInput && selectedImages.length === 0 && !selectedAudio && selectedPdfs.length === 0) || isLoading || uploading) {
+      return;
+    }
 
-    onSendMessage(trimmedInput);
+    // Send message with attachments
+    onSendMessage(
+      trimmedInput || "", 
+      selectedImages.length > 0 ? selectedImages : undefined, 
+      selectedAudio || undefined,
+      selectedPdfs.length > 0 ? selectedPdfs : undefined
+    );
+    
+    // Clear inputs
     setInput("");
+    setSelectedImages([]);
+    setSelectedAudio(null);
+    setSelectedPdfs([]);
 
     // Scroll immediately after sending
     scrollToBottom();
@@ -225,7 +454,7 @@ export function AIChatBox({
         ) : (
           <ScrollArea className="h-full">
             <div className="flex flex-col space-y-4 p-4">
-              {displayMessages.map((message, index) => {
+              {displayMessages.map((message, index: number) => {
                 // Apply min-height to last message only if NOT loading (when loading, the loading indicator gets it)
                 const isLastMessage = index === displayMessages.length - 1;
                 const shouldApplyMinHeight =
@@ -260,6 +489,29 @@ export function AIChatBox({
                           : "bg-muted text-foreground"
                       )}
                     >
+                      {/* Display images if present */}
+                      {message.images && message.images.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {message.images.map((imgUrl: string, imgIndex: number) => (
+                            <img
+                              key={imgIndex}
+                              src={imgUrl}
+                              alt={`Upload ${imgIndex + 1}`}
+                              className="max-w-[200px] max-h-[200px] rounded object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Display audio if present */}
+                      {message.audio && (
+                        <div className="mb-2">
+                          <audio controls src={message.audio} className="max-w-full">
+                            Seu navegador não suporta áudio.
+                          </audio>
+                        </div>
+                      )}
+                      
                       {message.role === "assistant" ? (
                         <div className="prose prose-sm dark:prose-invert max-w-none">
                           <Streamdown>{message.content}</Streamdown>
@@ -302,28 +554,151 @@ export function AIChatBox({
         )}
       </div>
 
+      {/* Selected Images Preview */}
+      {selectedImages.length > 0 && (
+        <div className="px-4 pt-2 border-t bg-background/50">
+          <div className="flex flex-wrap gap-2 mb-2">
+            {selectedImages.map((imgUrl, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={imgUrl}
+                  alt={`Preview ${index + 1}`}
+                  className="w-20 h-20 object-cover rounded border"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Audio Preview */}
+      {selectedAudio && (
+        <div className="px-4 pt-2 border-t bg-background/50">
+          <div className="flex items-center gap-2 mb-2">
+            <audio controls src={selectedAudio} className="flex-1 max-w-md">
+              Seu navegador não suporta áudio.
+            </audio>
+            <button
+              type="button"
+              onClick={removeAudio}
+              className="bg-destructive text-destructive-foreground rounded-full p-1"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selected PDFs Preview */}
+      {selectedPdfs.length > 0 && (
+        <div className="px-4 pt-2 border-t bg-background/50">
+          <div className="flex flex-wrap gap-2 mb-2">
+            {selectedPdfs.map((pdfUrl, index) => (
+              <div key={index} className="flex items-center gap-2 bg-muted rounded px-3 py-1.5">
+                <FileText className="size-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">PDF {index + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removePdf(index)}
+                  className="text-destructive hover:text-destructive/80"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input Area */}
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         className="flex gap-2 p-4 border-t bg-background/50 items-end"
       >
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="flex-1 max-h-32 resize-none min-h-9"
-          rows={1}
-        />
+        <div className="flex-1 flex flex-col gap-2">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="flex-1 max-h-32 resize-none min-h-9"
+            rows={1}
+          />
+          <div className="flex gap-2">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*"
+              onChange={handleAudioSelect}
+              className="hidden"
+            />
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              multiple
+              onChange={handlePdfSelect}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isLoading || uploading}
+              className="h-8 w-8"
+              title="Adicionar imagem"
+            >
+              <ImageIcon className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={isLoading || uploading || !!selectedAudio}
+              className="h-8 w-8"
+              title="Adicionar áudio"
+            >
+              <Mic className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => pdfInputRef.current?.click()}
+              disabled={isLoading || uploading}
+              className="h-8 w-8"
+              title="Adicionar PDF"
+            >
+              <FileText className="size-4" />
+            </Button>
+          </div>
+        </div>
         <Button
           type="submit"
           size="icon"
-          disabled={!input.trim() || isLoading}
+          disabled={(!input.trim() && selectedImages.length === 0 && !selectedAudio && selectedPdfs.length === 0) || isLoading || uploading}
           className="shrink-0 h-[38px] w-[38px]"
         >
-          {isLoading ? (
+          {isLoading || uploading ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Send className="size-4" />

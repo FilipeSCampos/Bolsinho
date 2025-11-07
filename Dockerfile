@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     tesseract-ocr \
     tesseract-ocr-por \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,6 +36,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     tesseract-ocr \
     tesseract-ocr-por \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -54,10 +56,19 @@ COPY shared ./shared
 
 # Instalar dependências Python
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Criar ambiente virtual Python e instalar dependências
+RUN python3.11 -m venv /app/venv && \
+    /app/venv/bin/pip install --upgrade pip && \
+    /app/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-# Criar diretório para uploads
-RUN mkdir -p /app/uploads
+# Adicionar venv ao PATH
+ENV PATH="/app/venv/bin:$PATH"
+
+# Criar diretórios necessários
+RUN mkdir -p /app/uploads /app/server/temp
+
+# Configurar permissões
+RUN chmod -R 755 /app/uploads /app/server/temp
 
 # Expor porta
 EXPOSE 3000

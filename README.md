@@ -130,6 +130,34 @@ brew install tesseract tesseract-lang
 **Windows:**
 Baixe o instalador em: https://github.com/UB-Mannheim/tesseract/wiki
 
+### Instalação do Poppler (necessário para processar PDFs)
+
+O Poppler é necessário para converter PDFs em imagens quando o PDF é escaneado.
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install poppler-utils
+```
+
+**macOS:**
+```bash
+brew install poppler
+```
+
+**Windows:**
+1. Baixe o Poppler para Windows: https://github.com/oschwartz10612/poppler-windows/releases/
+2. Extraia o arquivo ZIP
+3. Adicione a pasta `bin` ao PATH do sistema:
+   - Abra "Variáveis de Ambiente" no Windows
+   - Edite a variável PATH
+   - Adicione o caminho completo para a pasta `bin` do Poppler (ex: `C:\poppler\Library\bin`)
+   - Reinicie o terminal/PowerShell
+
+**Alternativa rápida para Windows (usando Chocolatey):**
+```powershell
+choco install poppler
+```
+
 ### Configuração do Projeto
 
 1. **Clone o repositório:**
@@ -143,12 +171,26 @@ cd finbot
 pnpm install
 ```
 
-3. **Instale as dependências Python:**
+3. **Crie e ative o ambiente virtual Python:**
 ```bash
-pip3 install groq pytesseract opencv-python-headless Pillow pdf2image newsapi-python python-multipart aiofiles
+# Criar ambiente virtual
+python -m venv venv
+
+# Ativar ambiente virtual
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# Windows (CMD):
+venv\Scripts\activate.bat
+# Linux/macOS:
+source venv/bin/activate
 ```
 
-4. **Configure as variáveis de ambiente:**
+4. **Instale as dependências Python:**
+```bash
+pip install -r requirements.txt
+```
+
+5. **Configure as variáveis de ambiente:**
 
 Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
 
@@ -165,21 +207,29 @@ NEWS_API_KEY=sua_chave_newsapi_aqui
 # JWT para autenticação
 JWT_SECRET=sua_chave_secreta_aleatoria
 
-# OAuth (se usar Manus Auth)
-VITE_APP_ID=seu_app_id
-OAUTH_SERVER_URL=https://api.manus.im
-VITE_OAUTH_PORTAL_URL=https://portal.manus.im
+# Storage (opcional - para uploads persistentes de imagens/áudio)
+# Se não configurado, o sistema usa data URLs (funciona para desenvolvimento)
+BUILT_IN_FORGE_API_URL=https://forge.manus.im
+BUILT_IN_FORGE_API_KEY=sua_chave_forge_aqui
+
+# Para usar o modelo multimodal Gemini (recomendado)
+# Configure estas variáveis se estiver usando o serviço Forge
+# Caso contrário, o sistema tentará usar o modelo configurado
 ```
 
-5. **Execute as migrações do banco de dados:**
+**Nota sobre Storage:** As variáveis `BUILT_IN_FORGE_API_URL` e `BUILT_IN_FORGE_API_KEY` são opcionais. Se não estiverem configuradas, o sistema usará data URLs base64 para imagens e áudio, que funcionam perfeitamente para desenvolvimento e testes. Para produção, recomenda-se configurar o storage para URLs persistentes.
+
+6. **Execute as migrações do banco de dados:**
 ```bash
 pnpm db:push
 ```
 
-6. **Inicie o servidor de desenvolvimento:**
+7. **Inicie o servidor de desenvolvimento:**
 ```bash
 pnpm dev
 ```
+
+**Nota:** Certifique-se de que o ambiente virtual Python está ativado antes de iniciar o servidor. O sistema tentará usar o Python do venv automaticamente se ele existir.
 
 O aplicativo estará disponível em `http://localhost:3000`
 

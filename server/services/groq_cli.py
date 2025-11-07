@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """CLI wrapper para groq_service"""
 
 import sys
 import json
+import io
+
+# Configurar encoding UTF-8 para stdout/stderr
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 from groq_service import groq_service
 
 def main():
@@ -45,6 +53,11 @@ def main():
             user_message = args[0]
             conversation_history = args[1] if len(args) > 1 else None
             result = groq_service.financial_assistant(user_message, conversation_history)
+            
+        elif method == "financial_assistant_multimodal":
+            user_content = args[0]
+            conversation_history = args[1] if len(args) > 1 else None
+            result = groq_service.financial_assistant_multimodal(user_content, conversation_history)
             
         else:
             result = {"error": f"Unknown method: {method}"}

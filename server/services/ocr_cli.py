@@ -32,6 +32,10 @@ def main():
             image_path = args[0]
             result = ocr_service.extract_invoice_data(image_path)
             
+        elif method == "extract_text_from_pdf":
+            pdf_path = args[0]
+            result = ocr_service.extract_text_from_pdf(pdf_path)
+            
         else:
             result = {"error": f"Unknown method: {method}"}
         

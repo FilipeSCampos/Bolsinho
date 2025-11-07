@@ -4,6 +4,12 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+// Obter __dirname em ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface PythonServiceResponse {
   success: boolean;
@@ -20,22 +26,58 @@ export async function executePythonService(
   args: any[] = []
 ): Promise<PythonServiceResponse> {
   return new Promise((resolve) => {
-    const scriptPath = path.join(__dirname, 'services', `${serviceName}.py`);
+    // Usa o CLI wrapper para executar o serviço
+    // O nome do arquivo CLI é diferente do nome do serviço
+    const cliMap: Record<string, string> = {
+      'groq': 'groq_cli',
+      'groq_service': 'groq_cli',
+      'ocr': 'ocr_cli',
+      'ocr_service': 'ocr_cli',
+      'news': 'news_cli',
+      'news_service': 'news_cli',
+    };
+    const cliName = cliMap[serviceName] || `${serviceName}_cli`;
+    const scriptPath = path.join(__dirname, 'services', `${cliName}.py`);
     
-    // Prepara argumentos como JSON
-    const argsJson = JSON.stringify({ method, args });
+    // Prepara argumentos como JSON no formato esperado pelo CLI
+    const request = JSON.stringify({ method, args });
     
-    const pythonProcess = spawn('python3.11', [scriptPath, argsJson]);
+    // Try to use venv Python first, then fallback to system Python
+    const venvPythonPath = path.join(__dirname, '..', 'venv', 'Scripts', 'python.exe'); // Windows
+    const venvPythonPathUnix = path.join(__dirname, '..', 'venv', 'bin', 'python3'); // Unix/Mac
+    const venvPython = process.platform === 'win32' ? venvPythonPath : venvPythonPathUnix;
+    
+    // Check if venv exists synchronously, otherwise use system Python
+    let pythonCmd: string;
+    try {
+      fs.accessSync(venvPython, fs.constants.F_OK);
+      pythonCmd = venvPython;
+    } catch {
+      // Venv doesn't exist, use system Python
+      pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    }
+    
+    const pythonProcess = spawn(pythonCmd, [scriptPath, request], {
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+    });
     
     let stdout = '';
     let stderr = '';
     
-    pythonProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
+    // Configurar encoding UTF-8 explicitamente
+    if (pythonProcess.stdout) {
+      pythonProcess.stdout.setEncoding('utf8');
+    }
+    if (pythonProcess.stderr) {
+      pythonProcess.stderr.setEncoding('utf8');
+    }
+    
+    pythonProcess.stdout?.on('data', (data: Buffer | string) => {
+      stdout += typeof data === 'string' ? data : data.toString('utf8');
     });
     
-    pythonProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
+    pythonProcess.stderr?.on('data', (data: Buffer | string) => {
+      stderr += typeof data === 'string' ? data : data.toString('utf8');
     });
     
     pythonProcess.on('close', (code) => {
@@ -88,7 +130,20 @@ export const groqService = {
   },
   
   async financialAssistant(userMessage: string, conversationHistory?: any[]) {
-    return executePythonService('groq_service', 'financial_assistant', [userMessage, conversationHistory]);
+    const result = await executePythonService('groq', 'financial_assistant', [userMessage, conversationHistory]);
+    if (!result.success) {
+      throw new Error(result.error || 'Erro ao executar o Bolsinho');
+    }
+    // O resultado pode ser uma string ou objeto, retorna como está
+    return typeof result.data === 'string' ? result.data : result.data;
+  },
+  
+  async financialAssistantMultimodal(userContent: any, conversationHistory?: any[]) {
+    const result = await executePythonService('groq', 'financial_assistant_multimodal', [userContent, conversationHistory]);
+    if (!result.success) {
+      throw new Error(result.error || 'Erro ao executar o Bolsinho (multimodal)');
+    }
+    return typeof result.data === 'string' ? result.data : result.data;
   }
 };
 
@@ -110,6 +165,10 @@ export const ocrService = {
   
   async extractInvoiceData(imagePath: string) {
     return executePythonService('ocr_service', 'extract_invoice_data', [imagePath]);
+  },
+  
+  async extractTextFromPdf(pdfPath: string) {
+    return executePythonService('ocr_service', 'extract_text_from_pdf', [pdfPath]);
   }
 };
 

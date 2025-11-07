@@ -16,9 +16,16 @@ class NewsService:
         """Inicializa o cliente NewsAPI."""
         api_key = os.getenv("NEWS_API_KEY")
         if not api_key:
-            raise ValueError("NEWS_API_KEY não configurada")
+            raise ValueError(
+                "NEWS_API_KEY não configurada. "
+                "Configure a variável de ambiente NEWS_API_KEY no arquivo .env. "
+                "Obtenha sua chave em: https://newsapi.org/register"
+            )
         
-        self.client = NewsApiClient(api_key=api_key)
+        try:
+            self.client = NewsApiClient(api_key=api_key)
+        except Exception as e:
+            raise ValueError(f"Erro ao inicializar NewsAPI: {str(e)}")
         
         # Fontes brasileiras de notícias financeiras
         self.brazilian_sources = [
@@ -26,6 +33,28 @@ class NewsService:
             "valor-economico", 
             "exame"
         ]
+    
+    def _check_api_status(self):
+        """Verifica o status da API e retorna informações úteis."""
+        try:
+            # Testa com uma busca simples
+            test_response = self.client.get_everything(
+                q="economia",
+                language="pt",
+                page_size=1,
+                sort_by="publishedAt"
+            )
+            return {
+                "status": test_response.get("status"),
+                "total_results": test_response.get("totalResults", 0),
+                "working": test_response.get("status") == "ok"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "working": False
+            }
     
     def get_top_headlines(
         self,
@@ -51,9 +80,44 @@ class NewsService:
                 page_size=page_size
             )
             
-            return self._format_articles(response.get("articles", []))
+            # Verifica o status da resposta
+            status = response.get("status")
+            if status == "error":
+                error_code = response.get("code")
+                error_message = response.get("message", "Erro desconhecido")
+                return [{"error": f"Erro da API: {error_message}", "code": error_code}]
+            
+            articles = response.get("articles", [])
+            if not articles:
+                # Se não houver notícias no top_headlines, tenta usar search_news como fallback
+                # Isso é útil porque a NewsAPI gratuita tem limitações no endpoint top_headlines
+                try:
+                    fallback_query = "financeiro OR economia OR mercado" if category == "business" else category
+                    fallback_result = self.search_news(fallback_query, language="pt", page_size=page_size)
+                    if fallback_result and len(fallback_result) > 0 and "error" not in fallback_result[0]:
+                        return fallback_result
+                except:
+                    pass
+                
+                # Se o fallback também falhou, retorna erro
+                total_results = response.get("totalResults", 0)
+                if total_results == 0:
+                    return [{"error": f"Nenhuma notícia encontrada para {category} no país {country}. Tente usar search_news com uma busca específica.", "status": status}]
+                else:
+                    return [{"error": "Nenhuma notícia retornada pela API", "status": status, "totalResults": total_results}]
+            
+            return self._format_articles(articles)
         except Exception as e:
-            return [{"error": str(e)}]
+            error_msg = str(e)
+            # Verifica se é um erro de API (rate limit, invalid key, etc.)
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                return [{"error": "API Key inválida. Verifique se a NEWS_API_KEY está correta no arquivo .env"}]
+            elif "429" in error_msg or "rate limit" in error_msg.lower():
+                return [{"error": "Limite de requisições excedido. Aguarde um momento antes de tentar novamente."}]
+            elif "400" in error_msg:
+                return [{"error": f"Erro na requisição: {error_msg}"}]
+            else:
+                return [{"error": f"Erro ao buscar notícias: {error_msg}"}]
     
     def search_news(
         self,
@@ -79,11 +143,17 @@ class NewsService:
             Lista de notícias
         """
         try:
-            # Define período padrão (últimos 7 dias)
+            # Define período padrão (últimos 30 dias para mais resultados)
             if not from_date:
-                from_date = datetime.now() - timedelta(days=7)
+                from_date = datetime.now() - timedelta(days=30)
             if not to_date:
                 to_date = datetime.now()
+            
+            # Limita o período máximo para evitar erros da API
+            max_days = 30
+            days_diff = (to_date - from_date).days
+            if days_diff > max_days:
+                from_date = to_date - timedelta(days=max_days)
             
             response = self.client.get_everything(
                 q=query,
@@ -91,12 +161,37 @@ class NewsService:
                 to=to_date.strftime("%Y-%m-%d"),
                 language=language,
                 sort_by=sort_by,
-                page_size=page_size
+                page_size=min(page_size, 100)  # Limite máximo da API
             )
             
-            return self._format_articles(response.get("articles", []))
+            # Verifica o status da resposta
+            status = response.get("status")
+            if status == "error":
+                error_code = response.get("code")
+                error_message = response.get("message", "Erro desconhecido")
+                return [{"error": f"Erro da API: {error_message}", "code": error_code}]
+            
+            articles = response.get("articles", [])
+            total_results = response.get("totalResults", 0)
+            
+            if not articles:
+                if total_results == 0:
+                    return [{"error": f"Nenhuma notícia encontrada para a busca: {query}", "status": status}]
+                else:
+                    return [{"error": "Nenhuma notícia retornada pela API", "status": status, "totalResults": total_results}]
+            
+            return self._format_articles(articles)
         except Exception as e:
-            return [{"error": str(e)}]
+            error_msg = str(e)
+            # Verifica se é um erro de API (rate limit, invalid key, etc.)
+            if "401" in error_msg or "Unauthorized" in error_msg:
+                return [{"error": "API Key inválida. Verifique se a NEWS_API_KEY está correta no arquivo .env"}]
+            elif "429" in error_msg or "rate limit" in error_msg.lower():
+                return [{"error": "Limite de requisições excedido. Aguarde um momento antes de tentar novamente."}]
+            elif "400" in error_msg:
+                return [{"error": f"Erro na requisição: {error_msg}"}]
+            else:
+                return [{"error": f"Erro ao buscar notícias: {error_msg}"}]
     
     def get_investment_news(
         self,
@@ -267,5 +362,12 @@ class NewsService:
         return formatted
 
 
-# Instância global do serviço
-news_service = NewsService()
+# Instância global do serviço (inicializada apenas quando necessário)
+news_service = None
+
+def get_news_service():
+    """Obtém ou cria a instância do serviço de notícias."""
+    global news_service
+    if news_service is None:
+        news_service = NewsService()
+    return news_service

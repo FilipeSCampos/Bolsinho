@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  # Aplicação FinBot
+  # Aplicação Bolsinho
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: finbot-app
+    container_name: bolsinho-app
     ports:
       - "3000:3000"
     environment:
@@ -20,26 +20,27 @@ services:
         condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
+      - ./server/temp:/app/server/temp
     networks:
-      - finbot-network
+      - bolsinho-network
     restart: unless-stopped
 
   # Banco de Dados MySQL
   db:
     image: mysql:8.0
-    container_name: finbot-db
+    container_name: bolsinho-db
     environment:
       - MYSQL_ROOT_PASSWORD=root_password
       - MYSQL_DATABASE=finbot
       - MYSQL_USER=finbot
       - MYSQL_PASSWORD=finbot_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - finbot-network
+      - bolsinho-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
       interval: 10s
@@ -50,19 +51,19 @@ services:
   # Redis para cache (opcional)
   redis:
     image: redis:7-alpine
-    container_name: finbot-redis
+    container_name: bolsinho-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - finbot-network
+      - bolsinho-network
     restart: unless-stopped
 
   # Nginx como reverse proxy (opcional)
   nginx:
     image: nginx:alpine
-    container_name: finbot-nginx
+    container_name: bolsinho-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -72,7 +73,7 @@ services:
     depends_on:
       - app
     networks:
-      - finbot-network
+      - bolsinho-network
     restart: unless-stopped
 
 volumes:
@@ -82,5 +83,5 @@ volumes:
     driver: local
 
 networks:
-  finbot-network:
+  bolsinho-network:
     driver: bridge

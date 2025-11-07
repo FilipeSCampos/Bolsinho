@@ -286,7 +286,7 @@ Retorne apenas o JSON, sem texto adicional."""
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         """
-        Assistente financeiro conversacional.
+        Assistente financeiro conversacional (Bolsinho).
         
         Args:
             user_message: Mensagem do usuário
@@ -295,16 +295,18 @@ Retorne apenas o JSON, sem texto adicional."""
         Returns:
             Resposta do assistente
         """
-        system_prompt = """Você é um assistente financeiro pessoal especializado em:
+        system_prompt = """Você é o Bolsinho, assistente financeiro pessoal e especialista em investimentos e finanças. Você é especializado em:
 - Educação financeira
 - Planejamento de orçamento
 - Análise de gastos
-- Dicas de investimento
+- Investimentos e mercado financeiro
 - Economia e redução de custos
 
 Seja sempre prestativo, claro e forneça conselhos práticos.
 Use linguagem acessível e exemplos quando apropriado.
-Quando falar sobre investimentos, sempre mencione os riscos envolvidos."""
+Quando falar sobre investimentos, sempre mencione os riscos envolvidos.
+
+Lembre-se: Você é o Bolsinho, um especialista confiável em investimentos e finanças pessoais."""
 
         messages = [{"role": "system", "content": system_prompt}]
         
@@ -314,6 +316,65 @@ Quando falar sobre investimentos, sempre mencione os riscos envolvidos."""
         messages.append({"role": "user", "content": user_message})
         
         return self.chat_completion(messages, temperature=0.7, max_tokens=2048)
+    
+    def financial_assistant_multimodal(
+        self,
+        user_content: Any,
+        conversation_history: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        """
+        Assistente financeiro conversacional (Bolsinho) com suporte multimodal (texto, imagens, áudio).
+        
+        Args:
+            user_content: Conteúdo do usuário (string, dict ou array de content parts)
+            conversation_history: Histórico da conversa (pode conter conteúdo multimodal)
+            
+        Returns:
+            Resposta do assistente
+        """
+        system_prompt = """Você é o Bolsinho, assistente financeiro pessoal e especialista em investimentos e finanças. Você é especializado em:
+- Educação financeira
+- Planejamento de orçamento
+- Análise de gastos
+- Investimentos e mercado financeiro
+- Economia e redução de custos
+- Notícias financeiras atuais e análises de mercado
+
+Seja sempre prestativo, claro e forneça conselhos práticos.
+Use linguagem acessível e exemplos quando apropriado.
+Quando falar sobre investimentos, sempre mencione os riscos envolvidos.
+
+Você pode analisar imagens de recibos, notas fiscais, extratos bancários e outros documentos financeiros.
+Se receber áudio, transcreva e responda ao conteúdo.
+
+IMPORTANTE: Se o usuário perguntar sobre notícias financeiras, você receberá notícias atualizadas no contexto da mensagem. 
+Use essas notícias para fornecer respostas precisas e atualizadas. Cite as fontes quando apropriado e forneça análise relevante sobre o impacto das notícias.
+
+Lembre-se: Você é o Bolsinho, um especialista confiável em investimentos e finanças pessoais."""
+
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history if provided
+        if conversation_history:
+            messages.extend(conversation_history)
+        
+        # Add current user message
+        messages.append({"role": "user", "content": user_content})
+        
+        # Use vision model if content contains images, otherwise use text model
+        has_images = False
+        if isinstance(user_content, list):
+            has_images = any(
+                isinstance(part, dict) and part.get("type") == "image_url"
+                for part in user_content
+            )
+        elif isinstance(user_content, dict):
+            has_images = user_content.get("type") == "image_url"
+        
+        model = self.default_model if has_images else self.text_model
+        max_tokens = 4096 if has_images else 2048
+        
+        return self.chat_completion(messages, model=model, temperature=0.7, max_tokens=max_tokens)
 
 
 # Instância global do serviço

@@ -1,6 +1,20 @@
 # Dependencies
 **/node_modules
+server/temp
 .pnpm-store/
+
+# Python virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
 # Build outputs
 dist/
@@ -105,3 +119,6 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Uploads and user data
+uploads/
