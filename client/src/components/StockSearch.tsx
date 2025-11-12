@@ -37,13 +37,23 @@ export function StockSearch({ onStockAdded }: StockSearchProps) {
     },
   });
 
-  const { data: searchResults = [], isLoading: isSearchingStocks } = trpc.stocks.search.useQuery(
+  const { data: searchResults = [], isLoading: isSearchingStocks, error: searchError } = trpc.stocks.search.useQuery(
     { query: searchQuery, limit: 10, investmentType: "stock" },
     {
       enabled: searchQuery.length >= 2 && !isSearching,
       refetchOnWindowFocus: false,
     }
   );
+  
+  // Debug: log dos resultados
+  if (searchQuery.length >= 2) {
+    console.log('[StockSearch] Busca:', {
+      query: searchQuery,
+      results: searchResults.length,
+      isLoading: isSearchingStocks,
+      error: searchError
+    });
+  }
 
   const handleAddStock = async (ticker: string) => {
     if (monitoredStocks.length >= 6) {

@@ -6,6 +6,7 @@ Suporta ações brasileiras (B3) e internacionais.
 """
 
 import os
+import sys
 import yfinance as yf
 import pandas as pd
 import requests
@@ -25,7 +26,7 @@ class StockService:
         # API Key da Brapi (deve ser configurada na variável de ambiente BRAPI_API_KEY)
         self.brapi_api_key = os.getenv("BRAPI_API_KEY")
         if not self.brapi_api_key:
-            print("[Brapi] AVISO: BRAPI_API_KEY não configurada. Algumas ações podem não funcionar.")
+            print("[Brapi] AVISO: BRAPI_API_KEY não configurada. Algumas ações podem não funcionar.", file=sys.stderr)
         # Yahoo Finance como fallback (desabilitado para ações brasileiras)
         self.use_yahoo_fallback = False
     
@@ -115,11 +116,11 @@ class StockService:
                         "source": "brapi"
                     }
                 else:
-                    print(f"[Brapi] Nenhum resultado encontrado para {ticker}")
+                    print(f"[Brapi] Nenhum resultado encontrado para {ticker}", file=sys.stderr)
                     return None
             elif response.status_code == 401:
                 # Não autorizado (rate limit ou precisa de autenticação)
-                print(f"[Brapi] 401 Unauthorized para {ticker} - pode ser rate limit")
+                print(f"[Brapi] 401 Unauthorized para {ticker} - pode ser rate limit", file=sys.stderr)
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', 'Não autorizado')
                 return {
@@ -130,7 +131,7 @@ class StockService:
                 }
             elif response.status_code == 429:
                 # Rate limit
-                print(f"[Brapi] 429 Rate Limit para {ticker}")
+                print(f"[Brapi] 429 Rate Limit para {ticker}", file=sys.stderr)
                 return {
                     "success": False,
                     "error": f"Rate limit da Brapi API atingido para {ticker}. Aguarde alguns segundos e tente novamente.",
@@ -138,7 +139,7 @@ class StockService:
                     "rate_limited": True
                 }
             else:
-                print(f"[Brapi] Status {response.status_code} para {ticker}")
+                print(f"[Brapi] Status {response.status_code} para {ticker}", file=sys.stderr)
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', f'Erro HTTP {response.status_code}')
                 return {
@@ -148,7 +149,7 @@ class StockService:
                 }
                 
         except Exception as e:
-            print(f"[Brapi] Erro ao buscar {ticker}: {e}")
+            print(f"[Brapi] Erro ao buscar {ticker}: {e}", file=sys.stderr)
             return {
                 "success": False,
                 "error": f"Erro ao buscar {ticker} na Brapi API: {str(e)}",
@@ -259,14 +260,14 @@ class StockService:
                                 "source": "brapi"
                             }
                     
-                    print(f"[Brapi] Histórico não disponível para {ticker}")
+                    print(f"[Brapi] Histórico não disponível para {ticker}", file=sys.stderr)
                     return None
                 else:
-                    print(f"[Brapi] Nenhum resultado encontrado para histórico de {ticker}")
+                    print(f"[Brapi] Nenhum resultado encontrado para histórico de {ticker}", file=sys.stderr)
                     return None
             elif response.status_code == 401:
                 # Não autorizado (rate limit ou precisa de autenticação)
-                print(f"[Brapi] 401 Unauthorized para histórico de {ticker} - pode ser rate limit")
+                print(f"[Brapi] 401 Unauthorized para histórico de {ticker} - pode ser rate limit", file=sys.stderr)
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', 'Não autorizado')
                 return {
@@ -277,7 +278,7 @@ class StockService:
                 }
             elif response.status_code == 429:
                 # Rate limit
-                print(f"[Brapi] 429 Rate Limit para histórico de {ticker}")
+                print(f"[Brapi] 429 Rate Limit para histórico de {ticker}", file=sys.stderr)
                 return {
                     "success": False,
                     "error": f"Rate limit da Brapi API atingido para {ticker}. Aguarde alguns segundos e tente novamente.",
@@ -285,7 +286,7 @@ class StockService:
                     "rate_limited": True
                 }
             else:
-                print(f"[Brapi] Status {response.status_code} para histórico de {ticker}")
+                print(f"[Brapi] Status {response.status_code} para histórico de {ticker}", file=sys.stderr)
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', f'Erro HTTP {response.status_code}')
                 return {
@@ -295,7 +296,7 @@ class StockService:
                 }
                 
         except Exception as e:
-            print(f"[Brapi] Erro ao buscar histórico de {ticker}: {e}")
+            print(f"[Brapi] Erro ao buscar histórico de {ticker}: {e}", file=sys.stderr)
             return {
                 "success": False,
                 "error": f"Erro ao buscar histórico de {ticker} na Brapi API: {str(e)}",
@@ -575,85 +576,185 @@ class StockService:
             Dict com sugestões de ativos
         """
         try:
-            # Tenta usar Brapi API /available endpoint (v2)
-            url = f"{self.brapi_base_url}/v2/available"
-            params = {
-                "search": query,
-                "limit": limit
-            }
+            # Tenta usar Brapi API /available endpoint
+            # Primeiro tenta v2, depois v1 se v2 falhar
+            urls_to_try = [
+                f"{self.brapi_base_url}/available",  # v1 (mais comum)
+                f"{self.brapi_base_url}/v2/available",  # v2 (se existir)
+            ]
             
-            if self.brapi_api_key:
-                params['token'] = self.brapi_api_key
-            
-            # Filtra por tipo se especificado
-            if investment_type == "fii":
-                params['type'] = "real-estate-investment-funds"  # FIIs na Brapi
-            elif investment_type == "stock":
-                params['type'] = "stocks"  # Ações na Brapi
-            
-            response = requests.get(url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                # Brapi v2 retorna 'stocks' como array
-                if 'stocks' in data and len(data['stocks']) > 0:
-                    results = []
-                    for stock in data['stocks'][:limit]:
-                        # Determina o tipo baseado no ticker ou dados retornados
-                        ticker_str = stock.get('stock', '') or stock.get('symbol', '')
-                        stock_type = "fii" if ticker_str.endswith('11') else "stock"
-                        
-                        results.append({
-                            "ticker": ticker_str,
-                            "name": stock.get('name', stock.get('longName', ticker_str)),
-                            "market": stock.get('exchange', "B3"),
-                            "type": stock_type
-                        })
-                    
-                    return {
-                        "success": True,
-                        "query": query,
-                        "results": results,
-                        "count": len(results),
-                        "source": "brapi"
+            for url in urls_to_try:
+                try:
+                    params = {
+                        "search": query,
+                        "limit": limit
                     }
+                    
+                    if self.brapi_api_key:
+                        params['token'] = self.brapi_api_key
+                    
+                    # Filtra por tipo se especificado
+                    if investment_type == "fii":
+                        params['type'] = "real-estate-investment-funds"  # FIIs na Brapi
+                    elif investment_type == "stock":
+                        params['type'] = "stocks"  # Ações na Brapi
+                    
+                    response = requests.get(url, params=params, timeout=10)
+                    
+                    if response.status_code == 200:
+                        # Tenta fazer parse do JSON
+                        try:
+                            data = response.json()
+                        except (ValueError, json.JSONDecodeError):
+                            # Se não for JSON válido, pode ser uma string
+                            print(f"[Brapi] Resposta não é JSON válido para '{query}' via {url}: {response.text[:100]}", file=sys.stderr)
+                            continue
+                        
+                        # Brapi pode retornar 'stocks' ou formato diferente
+                        stocks_data = None
+                        if isinstance(data, dict):
+                            if 'stocks' in data:
+                                stocks_data = data['stocks']
+                            elif 'results' in data:
+                                stocks_data = data['results']
+                        elif isinstance(data, list):
+                            stocks_data = data
+                        
+                        if stocks_data and len(stocks_data) > 0:
+                            results = []
+                            for stock in stocks_data[:limit]:
+                                # Extrai ticker de diferentes formatos possíveis
+                                ticker_str = (
+                                    stock.get('stock', '') or 
+                                    stock.get('symbol', '') or 
+                                    stock.get('ticker', '') or
+                                    stock.get('code', '')
+                                )
+                                
+                                if not ticker_str:
+                                    continue
+                                
+                                # Extrai nome de diferentes formatos possíveis
+                                name = (
+                                    stock.get('name', '') or 
+                                    stock.get('longName', '') or 
+                                    stock.get('shortName', '') or
+                                    stock.get('companyName', '') or
+                                    ticker_str
+                                )
+                                
+                                # Determina o tipo baseado no ticker
+                                stock_type = "fii" if ticker_str.endswith('11') else "stock"
+                                
+                                results.append({
+                                    "ticker": ticker_str.upper(),
+                                    "name": name,
+                                    "market": stock.get('exchange', stock.get('market', "B3")),
+                                    "type": stock_type
+                                })
+                            
+                            if len(results) > 0:
+                                print(f"[Brapi] Encontrados {len(results)} resultados para '{query}' via {url}", file=sys.stderr)
+                                return {
+                                    "success": True,
+                                    "query": query,
+                                    "results": results,
+                                    "count": len(results),
+                                    "source": "brapi"
+                                }
+                    elif response.status_code == 404:
+                        # Endpoint não existe, tenta próximo
+                        continue
+                    else:
+                        print(f"[Brapi] Status {response.status_code} ao buscar '{query}' via {url}", file=sys.stderr)
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"[Brapi] Erro de requisição ao buscar '{query}' via {url}: {e}", file=sys.stderr)
+                    continue
+                except Exception as e:
+                    print(f"[Brapi] Erro ao processar resposta de {url}: {e}", file=sys.stderr)
+                    continue
+                    
         except Exception as e:
-            print(f"[Brapi] Erro ao buscar ativos via /available: {e}")
+            print(f"[Brapi] Erro geral ao buscar ativos: {e}", file=sys.stderr)
             # Continua para fallback local
         
-        # Fallback: Lista local de ações brasileiras conhecidas
+        # Fallback: Lista local de ações brasileiras conhecidas (expandida)
         brazilian_stocks = {
-            "PETR4": "Petrobras",
-            "VALE3": "Vale",
+            # Bancos (expandido)
             "ITUB4": "Itaú Unibanco",
+            "ITUB3": "Itaú Unibanco",
             "BBDC4": "Bradesco",
+            "BBDC3": "Bradesco",
+            "BBAS3": "Banco do Brasil",
+            "SANB11": "Santander Brasil",
+            "SANB4": "Santander Brasil",
+            "SANB3": "Santander Brasil",
+            "BPAC11": "BTG Pactual",
+            "BPAC5": "BTG Pactual",
+            "BPAN4": "Banco Pan",
+            "BRSR6": "Banco Banrisul",
+            "BIDI4": "Banco Inter",
+            "BIDI11": "Banco Inter",
+            "NUBR33": "Nu Holdings",
+            # Petróleo e Energia
+            "PETR4": "Petrobras",
+            "PETR3": "Petrobras",
+            "VALE3": "Vale",
+            "ELET3": "Eletrobras",
+            "ELET6": "Eletrobras",
+            "CMIG4": "Cemig",
+            "EGIE3": "Engie Brasil",
+            "EQTL3": "Equatorial Energia",
+            # Consumo
             "ABEV3": "Ambev",
+            "JBSS3": "JBS",
+            "MRFG3": "Marfrig",
+            "PCAR3": "Companhia Brasileira de Distribuição",
+            "RADL3": "Raia Drogasil",
+            "LREN3": "Lojas Renner",
+            "VVAR3": "Via Varejo",
+            "MGLU3": "Magazine Luiza",
+            "AMER3": "Americanas",
+            # Tecnologia e Serviços
             "WEGE3": "Weg",
             "RENT3": "Localiza",
-            "SUZB3": "Suzano",
-            "RADL3": "Raia Drogasil",
-            "ELET3": "Eletrobras",
-            "BBAS3": "Banco do Brasil",
-            "SANB11": "Santander",
-            "CMIG4": "Cemig",
-            "EMBR3": "Embraer",
-            "VIVT3": "Telefônica Brasil",
-            "KLBN11": "Klabin",
-            "UGPA3": "Ultrapar",
+            "RAIL3": "Rumo",
             "CCRO3": "CCR",
             "CYRE3": "Cyrela",
-            "EGIE3": "Engie Brasil",
-            "FLRY3": "Fleury",
-            "GGBR4": "Gerdau",
-            "HYPE3": "Hypera",
-            "JBSS3": "JBS",
-            "LREN3": "Lojas Renner",
             "MULT3": "Multiplan",
-            "PCAR3": "Companhia Brasileira de Distribuição",
-            "QUAL3": "Qualicorp",
-            "RAIL3": "Rumo",
-            "SBSP3": "Sabesp",
+            "IGTA3": "Iguatemi",
+            # Papel e Celulose
+            "SUZB3": "Suzano",
+            "KLBN11": "Klabin",
+            "FIBR3": "Klabin",
+            # Siderurgia e Mineração
+            "GGBR4": "Gerdau",
+            "CSNA3": "CSN",
             "USIM5": "Usinas Siderúrgicas",
+            "CSAN3": "Cosan",
+            # Telecomunicações
+            "VIVT3": "Telefônica Brasil",
+            "TIMS3": "TIM",
+            "OIBR3": "Oi",
+            # Outros
+            "FLRY3": "Fleury",
+            "HYPE3": "Hypera",
+            "QUAL3": "Qualicorp",
+            "SBSP3": "Sabesp",
+            "UGPA3": "Ultrapar",
+            "EMBR3": "Embraer",
+            "AZUL4": "Azul",
+            "GOLL4": "Gol",
+            "RAPT4": "Randon",
+            "PRIO3": "PetroRio",
+            "RDOR3": "Rede D'Or",
+            "HAPV3": "Hapvida",
+            "YDUQ3": "Yduqs",
+            "CAML3": "Camil Alimentos",
+            "BRAP4": "Bradespar",
+            "TAEE11": "Taesa",
+            "TRPL4": "Transmissão Paulista",
         }
         
         # Lista de FIIs conhecidos
@@ -686,8 +787,9 @@ class StockService:
         
         query_upper = query.upper().strip()
         results = []
+        seen_tickers = set()
         
-        # Busca exata
+        # Busca exata por ticker (prioridade)
         if query_upper in all_assets:
             asset_type = "fii" if query_upper in fiis else "stock"
             results.append({
@@ -696,11 +798,36 @@ class StockService:
                 "market": "B3",
                 "type": asset_type
             })
+            seen_tickers.add(query_upper)
         
-        # Busca parcial
+        # Busca parcial - primeiro por ticker, depois por nome
+        # Prioriza matches no ticker
         for ticker, name in all_assets.items():
-            if query_upper in ticker or query_upper in name.upper():
-                if ticker not in [r["ticker"] for r in results]:
+            if ticker in seen_tickers:
+                continue
+                
+            # Busca no ticker (maior prioridade)
+            if query_upper in ticker:
+                asset_type = "fii" if ticker in fiis else "stock"
+                results.append({
+                    "ticker": ticker,
+                    "name": name,
+                    "market": "B3",
+                    "type": asset_type
+                })
+                seen_tickers.add(ticker)
+                if len(results) >= limit:
+                    break
+        
+        # Se ainda não atingiu o limite, busca por nome
+        if len(results) < limit:
+            for ticker, name in all_assets.items():
+                if ticker in seen_tickers:
+                    continue
+                    
+                # Busca no nome (menor prioridade)
+                name_upper = name.upper()
+                if query_upper in name_upper:
                     asset_type = "fii" if ticker in fiis else "stock"
                     results.append({
                         "ticker": ticker,
@@ -708,8 +835,13 @@ class StockService:
                         "market": "B3",
                         "type": asset_type
                     })
+                    seen_tickers.add(ticker)
                     if len(results) >= limit:
                         break
+        
+        print(f"[Local] Busca local retornou {len(results)} resultados para '{query}'", file=sys.stderr)
+        if len(results) == 0:
+            print(f"[Local] Nenhum resultado encontrado. Query: '{query}', Tipo: {investment_type}, Total de ativos: {len(all_assets)}", file=sys.stderr)
         
         return {
             "success": True,

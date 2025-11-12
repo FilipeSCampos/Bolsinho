@@ -970,26 +970,39 @@ export const appRouter = router({
             apiType = "fii";
           }
           
+          console.log(`[Stocks] Buscando: query="${input.query}", type="${apiType}", limit=${input.limit || 10}`);
           const result = await stockService.searchStocks(input.query, input.limit || 10, apiType);
+          
+          console.log(`[Stocks] Resultado da busca:`, {
+            hasResult: !!result,
+            success: result?.success,
+            resultsCount: result?.results?.length || 0,
+            source: result?.source || 'unknown'
+          });
           
           // Verifica se result tem success e results
           if (result && typeof result === 'object' && 'success' in result) {
             if (result.success && 'results' in result) {
               // Mapeia resultados para incluir tipo correto
               const results = result.results || [];
+              console.log(`[Stocks] Retornando ${results.length} resultados`);
               return results.map((item: any) => ({
                 ...item,
                 type: item.type || (item.ticker && item.ticker.includes('11') ? 'fii' : 'stock'),
               }));
             }
             // Se success é false, retorna array vazio
+            console.warn(`[Stocks] Busca retornou success=false para "${input.query}"`);
             return [];
           }
           // Se result é um objeto com results diretamente
           if (result && typeof result === 'object' && 'results' in result) {
-            return result.results || [];
+            const results = result.results || [];
+            console.log(`[Stocks] Retornando ${results.length} resultados (formato direto)`);
+            return results;
           }
           // Fallback: retorna array vazio
+          console.warn(`[Stocks] Formato de resultado inesperado para "${input.query}"`);
           return [];
         } catch (error) {
           console.error("[Stocks] Erro ao buscar ações:", error);

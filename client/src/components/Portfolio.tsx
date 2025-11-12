@@ -107,7 +107,7 @@ export function Portfolio() {
     setEditingInvestment(null);
   };
 
-  const { data: searchResults = [], isLoading: isSearching } = trpc.stocks.search.useQuery(
+  const { data: searchResults = [], isLoading: isSearching, error: searchError } = trpc.stocks.search.useQuery(
     { 
       query: searchQuery, 
       limit: 10,
@@ -118,6 +118,17 @@ export function Portfolio() {
       refetchOnWindowFocus: false,
     }
   );
+  
+  // Debug: log dos resultados
+  if (searchQuery.length >= 2) {
+    console.log('[Portfolio] Busca:', {
+      query: searchQuery,
+      type: investmentType,
+      results: searchResults.length,
+      isLoading: isSearching,
+      error: searchError
+    });
+  }
 
   const handleAddInvestment = () => {
     // Para CDB e Tesouro Direto, o ticker pode ser o nome do investimento
