@@ -1,0 +1,11 @@
+8aea1dfcf60e13c88b7cec88202570373a6f0fe1|Filipe Sampaio Campos|113521439+FilipeSCampos@users.noreply.github.com|Foto da arquitetura
+27f75b69b15ebd8d28b9ea0ef44511e3be67b439|Manus Sandbox|sandbox@manus.ai|feat: frontend dashboard, login e documentação
+e93c4a8bf78196d56590488fd5a918d6d9a4ce8f|Fly.io|noreply@fly.io|New files from Fly.io Launch
+633fb5eee143fd7cc52a0ecfd58d24723d49967a|Manus Sandbox|sandbox@manus.ai|Dockerfile, server/_core/index.ts, DEPLOY_AZURE.md, DEPLOY_GOOGLE_CLOUD.md, .github/workflows/azure-deploy.yml
+faf0187436d06835041348ea4d9fc904406b8c88|Manus Sandbox|sandbox@manus.ai|fix: Adicionar pasta patches ao Dockerfile e atualizar README para Bolsinho
+b5a26e35a71f44224cd394066cccfab2c2752e29|Filipe Sampaio Campos|113521439+FilipeSCampos@users.noreply.github.com|Update README.md
+2f948669785a89b8d213e67f38a9fc7d94bb7119|Manus Sandbox|sandbox@manus.ai|merge: Resolver conflito no README.md mantendo versão completa
+5ae722231e5c356273f49f1060ea06aad53e8392|Manus Sandbox|sandbox@manus.ai|feat: Integração completa do Bolsinho - Assistente Financeiro Pessoal
+325eedcbc68ca657f6dd2a5c5602e650ae7ba82e|Filipe Sampaio Campos|113521439+FilipeSCampos@users.noreply.github.com|Initial commit
+38013e0b788f2d9bea3245f563d45dbfd4ed932f|Manus Sandbox|sandbox@manus.ai|Checkpoint: FinBot v0.1 - Backend completo com Groq API, OCR, NewsAPI, schemas de banco de dados e documentação
+63af22ec57ed8b7c54251006ce733d41a9898a9c|Manus Sandbox|sandbox@manus.ai|Initial project bootstrap
