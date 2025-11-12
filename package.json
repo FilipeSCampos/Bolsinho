@@ -10,10 +10,13 @@
     "check": "tsc --noEmit",
     "populate-stocks": "tsx scripts/populate-stock-cache.ts",
     "populate-stocks-real": "tsx scripts/populate-stock-cache-real-improved.ts",
-    "populate-stocks-mock": "tsx scripts/populate-stock-cache-mock.ts",
+    "clear-stock-cache": "tsx scripts/clear-stock-cache.ts",
+    "fix-financial-nulls": "tsx scripts/fix-financial-data-nulls.ts",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit generate && drizzle-kit migrate",
+    "db:apply-monitored-stocks": "node -e \"require('dotenv/config');const mysql=require('mysql2/promise');(async()=>{try{const c=await mysql.createConnection(process.env.DATABASE_URL);await c.execute('CREATE TABLE IF NOT EXISTS `monitoredStocks` (`id` INT AUTO_INCREMENT PRIMARY KEY, `userId` INT NOT NULL, `ticker` VARCHAR(20) NOT NULL, `displayOrder` INT NOT NULL DEFAULT 0, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE, UNIQUE KEY `unique_user_ticker` (`userId`, `ticker`), INDEX `idx_userId` (`userId`), INDEX `idx_displayOrder` (`displayOrder`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');console.log('[OK] Tabela monitoredStocks criada!');await c.end();process.exit(0);}catch(e){console.error('[ERRO]',e.message);process.exit(1);}})();\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

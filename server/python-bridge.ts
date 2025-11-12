@@ -234,7 +234,7 @@ export const newsService = {
 
 // Cache simples para rate limiting - armazena último tempo de requisição
 let lastStockRequestTime = 0;
-const MIN_REQUEST_INTERVAL_MS = 200; // 200ms entre requisições (5 req/s)
+const MIN_REQUEST_INTERVAL_MS = 1000; // 1 segundo entre requisições para evitar rate limiting
 
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -310,7 +310,9 @@ export const stockService = {
   
   async getStockVariation(ticker: string, period: string = '1mo') {
     try {
-      const result = await executePythonService('stock_service', 'get_stock_variation', [ticker, period]);
+      const result = await rateLimitedRequest(() => 
+        executePythonService('stock_service', 'get_stock_variation', [ticker, period])
+      );
       if (!result.success) {
         return {
           success: false,
@@ -330,6 +332,7 @@ export const stockService = {
   
   async searchStocks(query: string, limit: number = 5) {
     try {
+      // Busca não precisa de rate limiting pois é local (lista de ações conhecidas)
       const result = await executePythonService('stock_service', 'search_stocks', [query, limit]);
       if (!result.success) {
         return {

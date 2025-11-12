@@ -34,13 +34,11 @@ pnpm populate-stocks
 
 Script básico que tenta buscar dados uma vez.
 
-### Opção 3: Dados Mock (Fallback)
+### Opção 3: Dados Reais da Brapi API
 
-Se o Yahoo Finance não estiver funcionando:
+O sistema agora usa a **Brapi API** como fonte principal (gratuita, brasileira) e Yahoo Finance como fallback para ações internacionais. **Não há mais dados mockup** - apenas dados reais das APIs.
 
-```bash
-pnpm populate-stocks-mock
-```
+**Importante:** O sistema **NUNCA mais usa dados mockup**. Se a API falhar, retorna erro e o usuário deve tentar novamente.
 
 ## 📝 Estratégias do Script Melhorado
 

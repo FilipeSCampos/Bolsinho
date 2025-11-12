@@ -1,3 +1,4 @@
+
 # Script PowerShell simplificado para alterar o autor de todos os commits
 # Versao sem emojis para compatibilidade com PowerShell do Windows
 

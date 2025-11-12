@@ -156,10 +156,11 @@ export const investments = mysqlTable("investments", {
   userId: int("userId").notNull().references(() => users.id),
   ticker: varchar("ticker", { length: 20 }).notNull(),
   name: varchar("name", { length: 200 }),
-  quantity: int("quantity").notNull().default(0), // Quantidade de ações
+  type: mysqlEnum("type", ["stock", "fii", "cdb", "tesouro_direto", "fundo_imobiliario", "outro"]).default("stock").notNull(), // Tipo de investimento
+  quantity: int("quantity").notNull().default(0), // Quantidade de ações/cotas
   averagePrice: int("averagePrice").notNull(), // Preço médio em centavos
   totalInvested: int("totalInvested").notNull().default(0), // Total investido em centavos
-  currentValue: int("currentValue").default(0), // Valor atual em centavos
+  currentValue: int("currentValue").default(0).notNull(), // Valor atual em centavos (notNull para evitar null)
   currency: varchar("currency", { length: 10 }).default("BRL"),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -194,3 +195,16 @@ export const stockCache = mysqlTable("stockCache", {
 
 export type StockCache = typeof stockCache.$inferSelect;
 export type InsertStockCache = typeof stockCache.$inferInsert;
+
+// Ações monitoradas por usuário
+export const monitoredStocks = mysqlTable("monitoredStocks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ticker: varchar("ticker", { length: 20 }).notNull(),
+  displayOrder: int("displayOrder").default(0).notNull(), // Ordem de exibição
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MonitoredStock = typeof monitoredStocks.$inferSelect;
+export type InsertMonitoredStock = typeof monitoredStocks.$inferInsert;

@@ -6,6 +6,7 @@ Esta seção contém soluções para problemas comuns encontrados ao usar o Bols
 
 - [Solução: Erro do bcrypt](SOLUCAO_BCRYPT.md) - Como resolver erros relacionados ao bcrypt
 - [Solução: Erro do Banco de Dados](SOLUCAO_ERRO_DATABASE.md) - Como resolver erros relacionados ao banco de dados
+- [Solução: Erro dos Dados de Finanças](SOLUCAO_ERRO_FINANCAS.md) - Como resolver erros relacionados aos dados financeiros
 
 ## 🔍 Problemas Comuns
 

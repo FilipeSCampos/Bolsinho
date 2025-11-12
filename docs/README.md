@@ -30,6 +30,7 @@ Guia rápido para começar a usar o Bolsinho em minutos.
 ### 🔧 [Soluções de Problemas](solutions/)
 - [Solução: Erro do bcrypt](solutions/SOLUCAO_BCRYPT.md)
 - [Solução: Erro do Banco de Dados](solutions/SOLUCAO_ERRO_DATABASE.md)
+- [Solução: Erro dos Dados de Finanças](solutions/SOLUCAO_ERRO_FINANCAS.md)
 
 ### 📡 [API](API.md)
 Documentação da API do Bolsinho.

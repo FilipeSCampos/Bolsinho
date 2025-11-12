@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StockCardProps {
@@ -11,7 +11,16 @@ interface StockCardProps {
 }
 
 export function StockCard({ ticker, name, className }: StockCardProps) {
-  const { data: info, isLoading, error } = trpc.stocks.info.useQuery({ ticker });
+  const { data: info, isLoading, error } = trpc.stocks.info.useQuery(
+    { ticker },
+    {
+      staleTime: 4 * 60 * 60 * 1000, // 4 horas - dados considerados frescos por 4 horas
+      cacheTime: 24 * 60 * 60 * 1000, // 24 horas - mantém no cache por 24 horas
+      refetchOnMount: false, // Não refaz a query quando o componente é montado
+      refetchOnWindowFocus: false, // Não refaz a query quando a janela ganha foco
+      refetchOnReconnect: false, // Não refaz a query quando reconecta
+    }
+  );
 
   if (isLoading) {
     return (
@@ -114,6 +123,20 @@ export function StockCard({ ticker, name, className }: StockCardProps) {
           {info.volume && (
             <div className="text-xs text-muted-foreground">
               Volume: {info.volume.toLocaleString('pt-BR')}
+            </div>
+          )}
+          {info.timestamp && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2 pt-2 border-t">
+              <Clock className="w-3 h-3" />
+              <span>
+                Atualizado em {new Date(info.timestamp).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
             </div>
           )}
         </div>

@@ -10,7 +10,8 @@ import {
   alerts, InsertAlert,
   documents, InsertDocument,
   investments, InsertInvestment,
-  stockCache, InsertStockCache
+  stockCache, InsertStockCache,
+  monitoredStocks, InsertMonitoredStock
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -341,9 +342,39 @@ export async function getUserInvestments(userId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(investments)
-    .where(eq(investments.userId, userId))
-    .orderBy(desc(investments.updatedAt));
+  try {
+    const results = await db.select().from(investments)
+      .where(eq(investments.userId, userId))
+      .orderBy(desc(investments.updatedAt));
+    
+    // Ensure all values are properly typed and handle nulls
+    return results.map(inv => {
+      // Convert to numbers, handling null/undefined safely
+      const totalInvested = typeof inv.totalInvested === 'number' && !isNaN(inv.totalInvested)
+        ? inv.totalInvested
+        : 0;
+      const currentValue = typeof inv.currentValue === 'number' && !isNaN(inv.currentValue) && inv.currentValue > 0
+        ? inv.currentValue
+        : totalInvested; // Fallback to totalInvested if currentValue is null/invalid
+      const averagePrice = typeof inv.averagePrice === 'number' && !isNaN(inv.averagePrice)
+        ? inv.averagePrice
+        : 0;
+      const quantity = typeof inv.quantity === 'number' && !isNaN(inv.quantity)
+        ? inv.quantity
+        : 0;
+      
+      return {
+        ...inv,
+        currentValue,
+        totalInvested,
+        averagePrice,
+        quantity,
+      };
+    });
+  } catch (error) {
+    console.error("[Database] Error getting user investments:", error);
+    return [];
+  }
 }
 
 export async function createInvestment(investment: InsertInvestment) {
@@ -385,28 +416,59 @@ export async function getDashboardStats(userId: number) {
   try {
     // Get total portfolio value from investments
     const userInvestments = await getUserInvestments(userId);
-    const portfolioTotal = userInvestments.reduce((sum, inv) => sum + (inv.currentValue || inv.totalInvested || 0), 0);
+    
+    // Safely calculate portfolio total, handling null/undefined values
+    const portfolioTotal = userInvestments.reduce((sum, inv) => {
+      // Get values safely, handling null/undefined
+      const currentValue = typeof inv.currentValue === 'number' && !isNaN(inv.currentValue)
+        ? inv.currentValue
+        : null;
+      const totalInvested = typeof inv.totalInvested === 'number' && !isNaN(inv.totalInvested)
+        ? inv.totalInvested
+        : 0;
+      
+      // Use currentValue if available and valid, otherwise use totalInvested
+      const value = currentValue !== null && currentValue > 0 ? currentValue : totalInvested;
+      return sum + (value > 0 ? value : 0);
+    }, 0);
+    
     const investmentsCount = userInvestments.length;
     
-    // Calculate monthly return (simplified - would need historical data)
-    // For now, calculate based on difference between current value and total invested
-    const totalInvested = userInvestments.reduce((sum, inv) => sum + (inv.totalInvested || 0), 0);
-    const monthlyReturn = totalInvested > 0 
-      ? ((portfolioTotal - totalInvested) / totalInvested) * 100 
-      : 0;
+    // Calculate total invested separately for return calculation
+    const totalInvested = userInvestments.reduce((sum, inv) => {
+      const invested = typeof inv.totalInvested === 'number' && !isNaN(inv.totalInvested)
+        ? inv.totalInvested
+        : 0;
+      return sum + invested;
+    }, 0);
+    
+    // Calculate monthly return safely, avoiding division by zero
+    let monthlyReturn = 0;
+    if (totalInvested > 0 && portfolioTotal >= 0) {
+      const returnValue = ((portfolioTotal - totalInvested) / totalInvested) * 100;
+      // Ensure return is a valid number
+      if (!isNaN(returnValue) && isFinite(returnValue)) {
+        monthlyReturn = returnValue;
+      }
+    }
     
     // Get unique tickers for monitored stocks count
-    const uniqueTickers = new Set(userInvestments.map(inv => inv.ticker));
+    const uniqueTickers = new Set(
+      userInvestments
+        .map(inv => inv.ticker)
+        .filter(ticker => ticker !== null && ticker !== undefined)
+    );
     const monitoredStocks = Math.max(uniqueTickers.size, 6); // At least 6 (default featured stocks)
     
     return {
-      portfolioTotal,
+      portfolioTotal: Math.max(0, portfolioTotal), // Ensure non-negative
       monthlyReturn: Math.round(monthlyReturn * 100) / 100, // Round to 2 decimal places
       monitoredStocks,
       investmentsCount,
     };
   } catch (error) {
     console.error("[Dashboard] Error getting stats:", error);
+    // Return safe default values
     return {
       portfolioTotal: 0,
       monthlyReturn: 0,
@@ -458,31 +520,101 @@ export async function upsertStockCache(data: {
     const ticker = data.ticker.toUpperCase();
     const existing = await getStockFromCache(ticker);
     
+    // Prepara dados do cache (só inclui campos que foram fornecidos)
     const cacheData: any = {
       ticker,
-      normalizedTicker: data.normalizedTicker || null,
-      name: data.name || null,
-      currentPrice: data.currentPrice ? Math.round(data.currentPrice * 100) : null, // Convert to cents
-      previousClose: data.previousClose ? Math.round(data.previousClose * 100) : null,
-      change: data.change ? Math.round(data.change * 100) : null,
-      changePercent: data.changePercent ? Math.round(data.changePercent * 100) : null, // Store as integer (250 = 2.50%)
-      dayHigh: data.dayHigh ? Math.round(data.dayHigh * 100) : null,
-      dayLow: data.dayLow ? Math.round(data.dayLow * 100) : null,
-      volume: data.volume || null,
-      currency: data.currency || "BRL",
-      market: data.market || null,
-      sector: data.sector || null,
-      industry: data.industry || null,
-      marketCap: data.marketCap ? String(data.marketCap) : null, // Converte para string
-      historyData: data.historyData || null,
       lastUpdated: new Date(),
     };
+    
+    // Só atualiza campos que foram fornecidos (não undefined)
+    if (data.normalizedTicker !== undefined) {
+      cacheData.normalizedTicker = data.normalizedTicker || null;
+    }
+    if (data.name !== undefined) {
+      cacheData.name = data.name || null;
+    }
+    if (data.currentPrice !== undefined) {
+      // Verifica explicitamente null/undefined para permitir 0 (zero é falsy em JS)
+      cacheData.currentPrice = (data.currentPrice !== null && data.currentPrice !== undefined) ? Math.round(data.currentPrice * 100) : null;
+    }
+    if (data.previousClose !== undefined) {
+      cacheData.previousClose = (data.previousClose !== null && data.previousClose !== undefined) ? Math.round(data.previousClose * 100) : null;
+    }
+    if (data.change !== undefined) {
+      cacheData.change = (data.change !== null && data.change !== undefined) ? Math.round(data.change * 100) : null;
+    }
+    if (data.changePercent !== undefined) {
+      cacheData.changePercent = (data.changePercent !== null && data.changePercent !== undefined) ? Math.round(data.changePercent * 100) : null;
+    }
+    if (data.dayHigh !== undefined) {
+      cacheData.dayHigh = (data.dayHigh !== null && data.dayHigh !== undefined) ? Math.round(data.dayHigh * 100) : null;
+    }
+    if (data.dayLow !== undefined) {
+      cacheData.dayLow = (data.dayLow !== null && data.dayLow !== undefined) ? Math.round(data.dayLow * 100) : null;
+    }
+    if (data.volume !== undefined) {
+      cacheData.volume = data.volume || null;
+    }
+    if (data.currency !== undefined) {
+      cacheData.currency = data.currency || "BRL";
+    }
+    if (data.market !== undefined) {
+      cacheData.market = data.market || null;
+    }
+    if (data.sector !== undefined) {
+      cacheData.sector = data.sector || null;
+    }
+    if (data.industry !== undefined) {
+      cacheData.industry = data.industry || null;
+    }
+    if (data.marketCap !== undefined) {
+      cacheData.marketCap = data.marketCap ? String(data.marketCap) : null;
+    }
+    if (data.historyData !== undefined) {
+      cacheData.historyData = data.historyData || null;
+    }
 
     if (existing) {
+      // Se está atualizando e currentPrice não foi fornecido, mantém o valor existente
+      if (data.currentPrice === undefined && existing.currentPrice !== null && existing.currentPrice !== undefined) {
+        cacheData.currentPrice = existing.currentPrice;
+      }
+      // Se está atualizando e historyData não foi fornecido, mantém o valor existente
+      if (data.historyData === undefined && existing.historyData) {
+        cacheData.historyData = existing.historyData;
+      }
+      // Se está atualizando e name não foi fornecido, mantém o valor existente
+      if (data.name === undefined && existing.name) {
+        cacheData.name = existing.name;
+      }
+      
       await database.update(stockCache)
         .set(cacheData)
         .where(eq(stockCache.ticker, ticker));
     } else {
+      // Para novo registro, precisa ter pelo menos currentPrice ou historyData
+      if (cacheData.currentPrice === undefined && cacheData.historyData === undefined) {
+        throw new Error(`Cannot create cache entry for ${ticker} without currentPrice or historyData`);
+      }
+      
+      // Se não tem currentPrice mas tem historyData, tenta extrair do histórico
+      if (cacheData.currentPrice === undefined && cacheData.historyData) {
+        try {
+          const history = typeof cacheData.historyData === 'string' 
+            ? JSON.parse(cacheData.historyData) 
+            : cacheData.historyData;
+          if (history && history.history && Array.isArray(history.history) && history.history.length > 0) {
+            const lastItem = history.history[history.history.length - 1];
+            if (lastItem && lastItem.close) {
+              cacheData.currentPrice = Math.round(lastItem.close * 100);
+              console.log(`[Database] Extraído currentPrice do histórico para ${ticker}: ${lastItem.close}`);
+            }
+          }
+        } catch (error) {
+          console.error(`[Database] Erro ao extrair currentPrice do histórico para ${ticker}:`, error);
+        }
+      }
+      
       await database.insert(stockCache).values({
         ...cacheData,
         createdAt: new Date(),
@@ -490,6 +622,35 @@ export async function upsertStockCache(data: {
     }
   } catch (error) {
     console.error("[Database] Error upserting stock cache:", error);
+    throw error;
+  }
+}
+
+export async function clearStockCache() {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  
+  try {
+    await database.delete(stockCache);
+    console.log("[Database] Cache de ações limpo com sucesso");
+    return { success: true, message: "Cache limpo com sucesso" };
+  } catch (error) {
+    console.error("[Database] Erro ao limpar cache:", error);
+    throw error;
+  }
+}
+
+export async function deleteStockFromCache(ticker: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  
+  try {
+    await database.delete(stockCache)
+      .where(eq(stockCache.ticker, ticker.toUpperCase()));
+    console.log(`[Database] Cache de ${ticker} removido`);
+    return { success: true, message: `Cache de ${ticker} removido com sucesso` };
+  } catch (error) {
+    console.error(`[Database] Erro ao remover cache de ${ticker}:`, error);
     throw error;
   }
 }
@@ -515,4 +676,97 @@ export async function isStockCacheStale(ticker: string, maxAgeMinutes: number = 
   const maxAgeMs = maxAgeMinutes * 60 * 1000;
   
   return ageMs > maxAgeMs;
+}
+
+// Monitored Stocks operations
+export async function getUserMonitoredStocks(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  
+  try {
+    const results = await database.select()
+      .from(monitoredStocks)
+      .where(eq(monitoredStocks.userId, userId))
+      .orderBy(monitoredStocks.displayOrder, monitoredStocks.createdAt);
+    
+    return results;
+  } catch (error) {
+    console.error("[Database] Error getting user monitored stocks:", error);
+    return [];
+  }
+}
+
+export async function addMonitoredStock(userId: number, ticker: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  
+  try {
+    // Verifica se já existe
+    const existing = await database.select()
+      .from(monitoredStocks)
+      .where(and(
+        eq(monitoredStocks.userId, userId),
+        eq(monitoredStocks.ticker, ticker.toUpperCase())
+      ))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      throw new Error("Ação já está sendo monitorada");
+    }
+    
+    // Verifica limite de 6 ações
+    const currentStocks = await getUserMonitoredStocks(userId);
+    if (currentStocks.length >= 6) {
+      throw new Error("Limite de 6 ações monitoradas atingido");
+    }
+    
+    // Pega o próximo displayOrder
+    const maxOrder = currentStocks.reduce((max, stock) => 
+      Math.max(max, stock.displayOrder || 0), 0);
+    
+    await database.insert(monitoredStocks).values({
+      userId,
+      ticker: ticker.toUpperCase(),
+      displayOrder: maxOrder + 1,
+    });
+  } catch (error) {
+    console.error("[Database] Error adding monitored stock:", error);
+    throw error;
+  }
+}
+
+export async function removeMonitoredStock(userId: number, ticker: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  
+  try {
+    await database.delete(monitoredStocks)
+      .where(and(
+        eq(monitoredStocks.userId, userId),
+        eq(monitoredStocks.ticker, ticker.toUpperCase())
+      ));
+  } catch (error) {
+    console.error("[Database] Error removing monitored stock:", error);
+    throw error;
+  }
+}
+
+export async function updateMonitoredStockOrder(userId: number, tickers: string[]) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  
+  try {
+    // Atualiza a ordem de exibição
+    for (let i = 0; i < tickers.length; i++) {
+      await database.update(monitoredStocks)
+        .set({ displayOrder: i + 1, updatedAt: new Date() })
+        .where(and(
+          eq(monitoredStocks.userId, userId),
+          eq(monitoredStocks.ticker, tickers[i].toUpperCase())
+        ));
+    }
+  } catch (error) {
+    console.error("[Database] Error updating monitored stock order:", error);
+    throw error;
+  }
 }

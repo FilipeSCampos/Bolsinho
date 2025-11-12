@@ -32,6 +32,10 @@ GROQ_API_KEY=sua_chave_groq_aqui
 # News API (opcional - para notícias financeiras)
 NEWS_API_KEY=sua_chave_news_api_aqui
 
+# Brapi API (RECOMENDADO - para dados de ações brasileiras)
+# Obtenha sua chave em: https://brapi.dev/
+BRAPI_API_KEY=sua_chave_brapi_aqui
+
 # Forge API (opcional - fallback para LLM)
 BUILT_IN_FORGE_API_URL=https://api.forge.ai
 BUILT_IN_FORGE_API_KEY=sua_chave_forge_aqui
@@ -68,6 +72,13 @@ openssl rand -base64 32
 2. Crie uma conta gratuita
 3. Gere uma API Key
 4. Cole no `.env`: `NEWS_API_KEY=sua_chave_aqui`
+
+#### Brapi API (RECOMENDADO para ações brasileiras)
+1. Acesse: https://brapi.dev/
+2. Crie uma conta gratuita
+3. Gere uma API Key
+4. Cole no `.env`: `BRAPI_API_KEY=sua_chave_aqui`
+5. **Importante**: Sem a API key, algumas ações podem retornar erro 401 (rate limit)
 
 ### 5. Verificar configuração
 

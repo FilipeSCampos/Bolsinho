@@ -15,6 +15,7 @@ newsapi-python==0.2.7
 
 # Stock Market Data
 yfinance==0.2.51
+requests==2.31.0
 
 # Web Framework Support
 python-multipart==0.0.20

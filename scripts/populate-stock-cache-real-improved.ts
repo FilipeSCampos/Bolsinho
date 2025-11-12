@@ -205,7 +205,7 @@ async function populateCacheWithRealData() {
     console.log("   2. Problemas temporários com a API do Yahoo Finance");
     console.log("   3. Ações brasileiras podem estar temporariamente indisponíveis");
     console.log("\n🔄 Tente executar o script novamente em alguns minutos.");
-    console.log("   Ou use 'pnpm populate-stocks-mock' para dados de exemplo.");
+    console.log("   O sistema agora usa apenas dados reais das APIs (Brapi API).");
   } else if (results.success.length > 0) {
     console.log("\n📝 Os dados estão agora no cache e serão usados pelo frontend.");
     console.log("   O cache é válido por 15 minutos antes de tentar atualizar da API.");

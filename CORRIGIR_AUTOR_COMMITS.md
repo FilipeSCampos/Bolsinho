@@ -94,16 +94,39 @@ git log --pretty=format:"%h|%an|%ae|%s" -10
 
 Todos os commits devem mostrar "Filipe Sampaio Campos" como autor.
 
-## 🚀 Fazer Push
+## 🚀 Fazer Push (Sincronizar)
 
-**IMPORTANTE:** Se você já fez push do repositório, será necessário fazer force push:
+**IMPORTANTE:** Após reescrever o histórico, você **DEVE** fazer force push:
 
-```bash
-git push --force --all
-git push --force --tags
+### Opção 1: Force Push com Lease (Recomendado - Mais Seguro)
+
+```powershell
+git push --force-with-lease origin main
+git push --force origin --tags
 ```
 
-⚠️ **ATENÇÃO:** Force push reescreve o histórico no servidor. Certifique-se de que ninguém mais está trabalhando no repositório ou avise a equipe antes!
+O `--force-with-lease` é mais seguro porque verifica se alguém fez push enquanto você estava trabalhando.
+
+### Opção 2: Force Push Simples
+
+```powershell
+git push --force origin main
+git push --force origin --tags
+```
+
+⚠️ **ATENÇÃO:** Force push reescreve o histórico no servidor permanentemente!
+
+- Certifique-se de que **ninguém mais está trabalhando** no repositório
+- Avise a equipe antes de fazer force push
+- Se outras pessoas já fizeram pull, elas precisarão reconfigurar seus repositórios
+
+### ⚠️ Se Você Encontrar Erros
+
+Se você encontrar erros como:
+- `! [rejected] main -> main (non-fast-forward)`
+- `fatal: refusing to merge unrelated histories`
+
+Isso é **normal** após reescrever o histórico. Veja o guia completo: [docs/FIX_SYNC_AFTER_REWRITE.md](docs/FIX_SYNC_AFTER_REWRITE.md)
 
 ## 🔄 Reverter (Se Algo Der Errado)
 

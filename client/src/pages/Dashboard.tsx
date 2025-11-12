@@ -2,6 +2,9 @@ import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
 import { StockGrid } from "@/components/StockGrid";
+import { Portfolio } from "@/components/Portfolio";
+import { ExpectedReturnCard } from "@/components/ExpectedReturnCard";
+import { BolsinhoHelp } from "@/components/BolsinhoHelp";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -229,7 +232,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:shadow-xl transition-shadow">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium opacity-90 flex items-center gap-2">
@@ -239,7 +242,9 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                R$ {stats?.portfolioTotal ? (stats.portfolioTotal / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}
+                R$ {stats?.portfolioTotal && typeof stats.portfolioTotal === 'number' 
+                  ? (stats.portfolioTotal / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
+                  : '0,00'}
               </div>
               <p className="text-xs opacity-75 mt-1">
                 {stats && stats.investmentsCount > 0 ? `${stats.investmentsCount} investimento(s)` : 'Comece a investir hoje'}
@@ -256,9 +261,21 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className={`text-3xl font-bold ${(stats?.monthlyReturn ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {(stats?.monthlyReturn ?? 0) >= 0 ? '+' : ''}{(stats?.monthlyReturn ?? 0).toFixed(2)}%
+                {(stats?.monthlyReturn ?? 0) >= 0 ? '+' : ''}{typeof stats?.monthlyReturn === 'number' ? stats.monthlyReturn.toFixed(2) : '0.00'}%
               </div>
               <p className="text-xs text-muted-foreground mt-1">Últimos 30 dias</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Rendimento Esperado
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ExpectedReturnCard />
             </CardContent>
           </Card>
           
@@ -305,13 +322,20 @@ export default function Dashboard() {
           <TabsContent value="chat" className="space-y-4">
             <Card className="border-0 shadow-xl bg-white/50 backdrop-blur-sm">
               <CardHeader className="pb-4">
-                <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                  <MessageSquare className="w-6 h-6 text-emerald-600" />
-                  Conversar com Bolsinho
-                </CardTitle>
-                <CardDescription className="text-base">
-                  Pergunte sobre investimentos, ações, notícias financeiras e muito mais
-                </CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                      <MessageSquare className="w-6 h-6 text-emerald-600" />
+                      Conversar com Bolsinho
+                    </CardTitle>
+                    <CardDescription className="text-base">
+                      Pergunte sobre investimentos, ações, notícias financeiras e muito mais
+                    </CardDescription>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <BolsinhoHelp />
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <AIChatBox
@@ -339,33 +363,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="portfolio" className="space-y-4">
-            <Card className="border-0 shadow-xl bg-white/50 backdrop-blur-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                  <BarChart3 className="w-6 h-6 text-emerald-600" />
-                  Meu Portfólio
-                </CardTitle>
-                <CardDescription className="text-base">
-                  Acompanhe seus investimentos e performance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
-                    <BarChart3 className="w-10 h-10 text-emerald-600" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    Portfólio vazio
-                  </h3>
-                  <p className="text-gray-600 mb-6 max-w-md">
-                    Comece a adicionar investimentos ao seu portfólio e acompanhe seu desempenho em tempo real
-                  </p>
-                  <Button className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 h-auto shadow-md hover:shadow-lg transition-shadow">
-                    Adicionar Investimento
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <Portfolio />
           </TabsContent>
         </Tabs>
       </main>
