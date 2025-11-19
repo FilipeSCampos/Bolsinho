@@ -466,7 +466,7 @@ export function Portfolio() {
                     <TableHead>Total Investido</TableHead>
                     <TableHead>Valor Atual</TableHead>
                     <TableHead>Rendimento</TableHead>
-                    <TableHead>Rendimento Mensal Esperado</TableHead>
+                    <TableHead>Média (30 dias)</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -1530,14 +1530,29 @@ export const appRouter = router({
           
           for (const investment of investments) {
             try {
-              // Busca a variação mensal da ação
+              // Busca o histórico dos últimos 30 dias para calcular a média
               const variation = await stockService.getStockVariation(investment.ticker, "1mo");
               
-              if (variation && variation.success && variation.change_percent !== undefined) {
-                // Calcula o rendimento esperado mensal
-                const monthlyReturnPercent = variation.change_percent || 0;
+              if (variation && variation.success && variation.avg_price !== undefined && variation.avg_price !== null) {
+                // Usa a média dos últimos 30 dias em vez de variação percentual
+                const avgPrice30Days = variation.avg_price; // Média em reais
+                const currentPrice = await stockService.getStockInfo(investment.ticker);
+                const currentPriceValue = currentPrice?.current_price || avgPrice30Days;
+                
+                // Calcula a diferença percentual entre o preço atual e a média dos últimos 30 dias
+                // Isso mostra se o preço atual está acima ou abaixo da média
+                const avgPriceInCents = Math.round(avgPrice30Days * 100);
+                const currentPriceInCents = Math.round(currentPriceValue * 100);
                 const invested = investment.totalInvested || 0;
-                const expectedReturn = (invested * monthlyReturnPercent) / 100;
+                
+                // Calcula a diferença percentual: (preço_atual - média_30dias) / média_30dias * 100
+                const avgReturnPercent = avgPriceInCents > 0
+                  ? ((currentPriceInCents - avgPriceInCents) / avgPriceInCents) * 100
+                  : 0;
+                
+                // Para o cálculo do valor esperado, usa a média dos últimos 30 dias como referência
+                // O "rendimento" é baseado na diferença entre o preço atual e a média
+                const expectedReturn = (invested * avgReturnPercent) / 100;
                 const expectedValue = invested + expectedReturn;
                 
                 totalInvested += invested;
@@ -1548,11 +1563,12 @@ export const appRouter = router({
                   name: investment.name || investment.ticker,
                   invested: invested / 100,
                   expectedReturn: expectedReturn / 100,
-                  expectedReturnPercent: monthlyReturnPercent,
+                  expectedReturnPercent: avgReturnPercent,
                   expectedValue: expectedValue / 100,
+                  avgPrice30Days: avgPrice30Days,
                 });
               } else {
-                // Se não conseguir a variação, assume 0% de rendimento
+                // Se não conseguir a média, assume 0% de rendimento
                 const invested = investment.totalInvested || 0;
                 totalInvested += invested;
                 totalExpectedValue += invested;
@@ -1564,6 +1580,7 @@ export const appRouter = router({
                   expectedReturn: 0,
                   expectedReturnPercent: 0,
                   expectedValue: invested / 100,
+                  avgPrice30Days: null,
                 });
               }
               
@@ -1583,11 +1600,12 @@ export const appRouter = router({
                 expectedReturn: 0,
                 expectedReturnPercent: 0,
                 expectedValue: invested / 100,
+                avgPrice30Days: null,
               });
             }
           }
           
-          // Calcula o rendimento esperado total do portfolio
+          // Calcula o rendimento esperado total do portfolio baseado na média dos últimos 30 dias
           const portfolioExpectedReturn = totalInvested > 0
             ? ((totalExpectedValue - totalInvested) / totalInvested) * 100
             : 0;

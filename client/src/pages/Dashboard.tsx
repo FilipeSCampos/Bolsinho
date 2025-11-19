@@ -231,6 +231,30 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
+        {/* Disclaimer */}
+        <Card className="mb-6 border-amber-200 bg-amber-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-amber-900 font-medium mb-1">
+                  Aviso Importante
+                </p>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  O <strong>Bolsinho</strong> é uma inteligência artificial e pode cometer erros. 
+                  As informações fornecidas são apenas para fins educacionais e informativos. 
+                  <strong className="font-semibold"> Antes de realizar qualquer investimento, consulte um profissional qualificado.</strong> 
+                  O intuito do Bolsinho é te ajudar e ensinar sobre finanças, não substituir o aconselhamento financeiro profissional.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:shadow-xl transition-shadow">
@@ -271,7 +295,7 @@ export default function Dashboard() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
-                Rendimento Esperado
+                Média (30 dias)
               </CardTitle>
             </CardHeader>
             <CardContent>

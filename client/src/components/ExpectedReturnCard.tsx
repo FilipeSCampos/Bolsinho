@@ -22,7 +22,7 @@ export function ExpectedReturnCard() {
         {expectedReturn >= 0 ? '+' : ''}{expectedReturn.toFixed(2)}%
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        Valor esperado: R$ {expectedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        Média dos últimos 30 dias
       </p>
     </>
   );

@@ -541,6 +541,7 @@ class StockService:
             name = info.get("name", ticker) if info.get("success") else ticker
             currency = history.get("currency", "BRL")
             
+            # Retorna também a média dos preços (avg_price) para uso em cálculos de rendimento
             return {
                 "success": True,
                 "ticker": ticker,
@@ -551,6 +552,7 @@ class StockService:
                 "end_price": history.get("last_close"),
                 "change": history.get("period_change", 0),
                 "change_percent": history.get("period_change_percent", 0),
+                "avg_price": history.get("avg_price"),  # Média dos últimos 30 dias
                 "currency": currency,
                 "timestamp": datetime.now().isoformat()
             }
