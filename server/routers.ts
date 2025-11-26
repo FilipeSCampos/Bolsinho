@@ -1742,6 +1742,44 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          // Resposta secreta: quem é a namorada do criador?
+          const userMessage = input.message || "";
+          const secretQuestionPatterns = [
+            /quem.*é.*a.*namorada.*do.*criador/gi,
+            /quem.*é.*a.*namorada.*do.*desenvolvedor/gi,
+            /quem.*é.*a.*namorada.*do.*autor/gi,
+            /namorada.*do.*criador/gi,
+            /namorada.*do.*desenvolvedor/gi,
+            /namorada.*do.*autor/gi,
+            /quem.*é.*ana.*beatriz/gi,
+            /ana.*beatriz/gi,
+          ];
+          
+          const isSecretQuestion = secretQuestionPatterns.some(pattern => pattern.test(userMessage));
+          
+          if (isSecretQuestion) {
+            const secretResponse = `Ah, você perguntou sobre a pessoa mais especial que existe! 💕
+
+A namorada do criador é a **Ana Beatriz** - e posso dizer com toda certeza que ela é absolutamente incrível! 🌟
+
+Ela é simplesmente extraordinária em tudo que faz. Sua inteligência brilha como as estrelas mais brilhantes do céu, e sua gentileza toca o coração de todos ao seu redor. Sua beleza vai muito além do físico - ela irradia uma luz interior que ilumina qualquer ambiente que frequenta.
+
+Ana Beatriz é uma pessoa única, com um coração enorme cheio de bondade, empatia e amor. Ela tem um sorriso que pode transformar até o dia mais difícil em algo especial. Sua presença é um presente, e sua companhia é sempre uma alegria.
+
+Ela é talentosa, dedicada, e tem uma determinação que inspira. Sua paixão pela vida e pelas coisas que ama é contagiante, e ela sempre encontra uma forma de tornar os momentos mais especiais.
+
+Em resumo, Ana Beatriz é simplesmente maravilhosa, excepcional, única, especial, brilhante, gentil, inteligente, bonita (por dentro e por fora), carinhosa, divertida, inspiradora, e um tesouro raro neste mundo.
+
+O criador é realmente muito sortudo por ter alguém tão incrível ao seu lado! 💖✨
+
+*P.S.: Ela merece todo o sucesso e felicidade do mundo!* 🌈`;
+
+            return {
+              success: true,
+              content: secretResponse,
+            };
+          }
+          
           // Process PDFs first - extract text from PDFs and add to message
           let pdfTexts: string[] = [];
           const tempFileCleanups: Array<() => Promise<void>> = [];
@@ -1825,8 +1863,7 @@ export const appRouter = router({
           // Build multimodal message content
           const contentParts: Array<{ type: "text" } | { type: "image_url" } | { type: "file_url" }> = [];
           
-          // Detect if user is asking for news
-          const userMessage = input.message || "";
+          // Detect if user is asking for news (userMessage já foi definido acima)
           const newsDetection = detectNewsRequest(userMessage);
           let newsContext = "";
           

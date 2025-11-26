@@ -1,76 +1,9 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+# Ignore everything
+*
+*/
 
-# Testing
-coverage/
-*.lcov
-.nyc_output
-
-# Production
-dist/
-build/
-
-# Misc
-.DS_Store
-*.pem
-*.log
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.settings/
-*.sublime-project
-*.sublime-workspace
-
-# Python
-venv/
-env/
-ENV/
-.venv/
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-dist/
-*.egg
-
-# Temporary files
-server/temp/
-uploads/
-*.tmp
-*.temp
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# OS
-Thumbs.db
-.DS_Store
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Except docs and README
+!docs/
+!docs/**
+!README.md
+!.gitignore

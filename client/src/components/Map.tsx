@@ -74,10 +74,13 @@ export function MapView({
   useEffect(() => {
     if (!window.google) {
       const scriptUrl = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&libraries=places,drawing,geometry,visualization,marker`;
-      
+
       fetch(scriptUrl, {
         method: 'GET',
-        headers: { 'Origin': window.location.origin },
+        headers: {
+          'Origin': window.location.origin,
+          'ngrok-skip-browser-warning': 'true',
+        },
       })
         .then(response => {
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -87,14 +90,14 @@ export function MapView({
           const script = document.createElement('script');
           script.textContent = scriptContent;
           document.head.appendChild(script);
-          
+
           const checkGoogle = setInterval(() => {
             if (window.google && window.google.maps) {
               clearInterval(checkGoogle);
               initMap();
             }
           }, 100);
-          
+
           setTimeout(() => clearInterval(checkGoogle), 10000);
         })
         .catch(error => console.error('Failed to fetch Google Maps script:', error));
@@ -117,7 +120,7 @@ export function MapView({
 
       // TODO: Initialize services here if needed (e.g., new google.maps.Marker({ map: map.current, ... }))
       // TODO: Add event listeners (e.g., map.current.addListener('click', ...))
-      
+
       if (onMapReady) {
         onMapReady(map.current);
       }
