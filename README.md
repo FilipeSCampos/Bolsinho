@@ -308,7 +308,8 @@ Este projeto está licenciado sob a **Licença MIT** - veja o arquivo [LICENSE](
 ```
 MIT License
 
-Copyright (c) 2025 Bolsinho, eu e o super time do projeto integrador 3, Valeu Wesley
+Copyright (c) 2025 Bolsinho, Filipe Sampaio Campos, Hermes Winarski, Vinicius Magrinelli, Regis Lukas, 
+Yasmin Helena, Júlia Martins, Orientador: Me. Wesley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
